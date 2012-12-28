@@ -15,17 +15,26 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGBuildsTable")
 	 */
-	class TBGBuild extends TBGVersionItem 
+	class TBGBuild extends TBGReleaseableItem 
 	{
 		
-		static protected $_b2dbtablename = 'TBGBuildsTable';
-		
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
 		/**
 		 * This builds edition
 		 *
 		 * @var TBGEdition
-		 * @Class TBGEdition
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGEdition")
 		 */
 		protected $_edition = null;
 
@@ -33,118 +42,87 @@
 		 * This builds project
 		 *
 		 * @var TBGProject
-		 * @Class TBGProject
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGProject")
 		 */
 		protected $_project = null;
 		
 		/**
-		 * Whether this build is released or not
+		 * This builds milestone, if any
+		 *
+		 * @var TBGMilestone
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGMilestone")
+		 */
+		protected $_milestone = null;
+		
+		/**
+		 * Whether this build is active or not
 		 * 
 		 * @var boolean
+		 * @Column(type="boolean", name="locked")
 		 */
-		protected $_isreleased = null;
+		protected $_isactive = null;
 		
 		/**
-		 * The builds release date
+		 * An attached file, if exists
 		 * 
-		 * @var integer
+		 * @var TBGFile
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGFile")
 		 */
-		protected $_release_date = null;
+		protected $_file_id = null;
 		
 		/**
-		 * Project builds cache
+		 * An url to download this releases file, if any
 		 * 
-		 * @var array
+		 * @var string
+		 * @Column(type="string", length=255)
 		 */
-		static protected $_project_builds = null;
+		protected $_file_url = null;
 
 		/**
-		 * Edition builds cache
-		 * 
-		 * @var array
-		 */
-		static protected $_edition_builds = null;
-		
-		/**
-		 * Get all builds for a specific project
-		 * 
-		 * @param integer $project_id The project ID
-		 * 
-		 * @return array
-		 */
-		public static function getByProjectID($project_id)
-		{
-			if (self::$_project_builds === null)
-			{
-				self::$_project_builds = array();
-			}
-			if (!array_key_exists($project_id, self::$_project_builds))
-			{
-				self::$_project_builds[$project_id] = array();
-				if ($res = B2DB::getTable('TBGBuildsTable')->getByProjectID($project_id))
-				{
-					while ($row = $res->getNextRow())
-					{
-						$build = TBGContext::factory()->TBGBuild($row->get(TBGBuildsTable::ID), $row);
-						self::$_project_builds[$project_id][$build->getID()] = $build;
-					}
-				}
-			}
-			return self::$_project_builds[$project_id];
-		}
-
-		/**
-		 * Get all builds for a specific edition
-		 * 
-		 * @param integer $edition_id The edition ID
-		 * 
-		 * @return array
-		 */
-		public static function getByEditionID($edition_id)
-		{
-			if (self::$_edition_builds === null)
-			{
-				self::$_edition_builds = array();
-			}
-			if (!array_key_exists($edition_id, self::$_edition_builds))
-			{
-				self::$_edition_builds[$edition_id] = array();
-				if ($res = B2DB::getTable('TBGBuildsTable')->getByEditionID($project_id))
-				{
-					$build = TBGContext::factory()->TBGBuild($row->get(TBGBuildsTable::ID), $row);
-					self::$_edition_builds[$edition_id][$build->getID()] = $build;
-				}
-			}
-			return self::$_edition_builds[$edition_id];
-		}
-		
-		/**
-		 * Class constructor
+		 * Major version
 		 *
-		 * @param B2DBRow $row
+		 * @var integer
+		 * @access protected
+		 * @Column(type="integer", length=5)
 		 */
-		public function _construct(B2DBRow $row, $foreign_key = null)
-		{
-			try
-			{
-				if ($this->_edition && is_numeric($this->_edition))
-				{
-					$this->_edition = TBGContext::factory()->TBGEdition($row->get(TBGBuildsTable::EDITION), $row);
-				}
-				elseif ($this->_project && is_numeric($this->_project))
-				{
-					$this->_project = TBGContext::factory()->TBGProject($row->get(TBGBuildsTable::PROJECT), $row);
-				}
-			}
-			catch (Exception $e) {}
-		}
-		
-		public function _postSave($is_new)
+		protected $_version_major = 0;
+
+		/**
+		 * Minor version
+		 *
+		 * @var integer
+		 * @access protected
+		 * @Column(type="integer", length=5)
+		 */
+		protected $_version_minor = 0;
+
+		/**
+		 * Revision
+		 *
+		 * @var integer
+		 * @access protected
+		 * @Column(type="string", length=30)
+		 */
+		protected $_version_revision = 0;
+
+		/**
+		 * Whether the item is locked or not
+		 *
+		 * @var boolean
+		 * @access protected
+		 * @Column(type="boolean")
+		 */
+		protected $_locked;
+
+		protected function _postSave($is_new)
 		{
 			if ($is_new)
 			{
 				TBGContext::setPermission("canseebuild", $this->getID(), "core", 0, TBGContext::getUser()->getGroup()->getID(), 0, true);
-				TBGEvent::createNew('core', 'TBGBuild::createNew', $this)->trigger();
+				TBGEvent::createNew('core', 'TBGBuild::_postSave', $this)->trigger();
 			}
 		}
 
@@ -165,7 +143,12 @@
 		 */
 		public function getEdition()
 		{
-			return $this->_edition;
+			return $this->_b2dbLazyload('_edition');
+		}
+		
+		public function getEditionID()
+		{
+			return ($this->_edition instanceof TBGEdition) ? $this->_edition->getID() : (int) $this->_edition;
 		}
 
 		public function setEdition(TBGEdition $edition)
@@ -180,12 +163,38 @@
 		 */
 		public function getProject()
 		{
-			return ($this->_project !== null || !is_object($this->_edition)) ? $this->_project : $this->_edition->getProject();
+			$this->_b2dbLazyload('_project');
+			return $this->_project;
 		}
 
 		public function setProject(TBGProject $project)
 		{
 			$this->_project = $project;
+		}
+		
+		/**
+		 * Returns the milestone
+		 *
+		 * @return TBGMilestone
+		 */
+		public function getMilestone()
+		{
+			return $this->_b2dbLazyload('_milestone');
+		}
+
+		public function setMilestone(TBGMilestone $milestone)
+		{
+			$this->_milestone = $milestone;
+		}
+		
+		public function clearMilestone()
+		{
+			$this->_milestone = null;
+		}
+		
+		public function clearEdition()
+		{
+			$this->_edition = null;
 		}
 		
 		/**
@@ -211,7 +220,7 @@
 		/**
 		 * Returns the parent object
 		 * 
-		 * @return TBGVersionItem
+		 * @return TBGReleaseableItem
 		 */
 		public function getParent()
 		{
@@ -225,13 +234,13 @@
 		{
 			if ($this->isEditionBuild())
 			{
-				B2DB::getTable('TBGBuildsTable')->clearDefaultsByEditionID($this->getParent()->getID());
+				\b2db\Core::getTable('TBGBuildsTable')->clearDefaultsByEditionID($this->getParent()->getID());
 			}
 			else
 			{
-				B2DB::getTable('TBGBuildsTable')->clearDefaultsByProjectID($this->getParent()->getID());
+				\b2db\Core::getTable('TBGBuildsTable')->clearDefaultsByProjectID($this->getParent()->getID());
 			}
-			$res = B2DB::getTable('TBGBuildsTable')->setDefaultBuild($this->getID());
+			$res = \b2db\Core::getTable('TBGBuildsTable')->setDefaultBuild($this->getID());
 			$this->_isdefault = true;
 		}
 		
@@ -240,7 +249,7 @@
 		 */
 		protected function _preDelete()
 		{
-			B2DB::getTable('TBGIssueAffectsBuildTable')->deleteByBuildID($this->getID());
+			\b2db\Core::getTable('TBGIssueAffectsBuildTable')->deleteByBuildID($this->getID());
 		}
 		
 		/**
@@ -257,7 +266,7 @@
 		{
 			if ($this->isEditionBuild())
 			{
-				$res = B2DB::getTable('TBGIssueAffectsEditionTable')->getOpenAffectedIssuesByEditionID($this->getParent()->getID(), $limit_status, $limit_category, $limit_issuetype);
+				$res = \b2db\Core::getTable('TBGIssueAffectsEditionTable')->getOpenAffectedIssuesByEditionID($this->getParent()->getID(), $limit_status, $limit_category, $limit_issuetype);
 			}
 			else
 			{
@@ -270,7 +279,7 @@
 				while ($row = $res->getNextRow())
 				{
 					$issue_id = $row->get(TBGIssuesTable::ID);
-					if (B2DB::getTable('TBGIssueAffectsBuildTable')->setIssueAffected($issue_id, $this->getID()))
+					if (\b2db\Core::getTable('TBGIssueAffectsBuildTable')->setIssueAffected($issue_id, $this->getID()))
 					{
 						$retval = true;
 					}
@@ -288,5 +297,222 @@
 		{
 			return (($this->getProject() instanceof TBGProject && $this->getProject()->canSeeAllBuilds()) || TBGContext::getUser()->hasPermission('canseebuild', $this->getID()));
 		}
+
+		/**
+		 * Return the file associated with this build, if any
+		 * 
+		 * @return TBGFile
+		 */
+		public function getFile()
+		{
+			return $this->_b2dbLazyload('_file_id');
+		}
 		
+		/**
+		 * Set the file associated with this build
+		 * 
+		 * @param TBGFile $file 
+		 */
+		public function setFile(TBGFile $file)
+		{
+			$this->_file_id = $file;
+		}
+		
+		public function clearFile()
+		{
+			$this->_file_id = null;
+		}
+		
+		/**
+		 * Return whether this build has a file associated to it
+		 * 
+		 * @return boolean
+		 */
+		public function hasFile()
+		{
+			return (bool) ($this->getFile() instanceof TBGFile);
+		}
+		
+		/**
+		 * Return the file download url for this build
+		 * 
+		 * @return string
+		 */
+		public function getFileURL()
+		{
+			return $this->_file_url;
+		}
+		
+		/**
+		 * Set the file download url for this build
+		 * 
+		 * @param string $file_url 
+		 */
+		public function setFileURL($file_url)
+		{
+			$this->_file_url = $file_url;
+		}
+		
+		/**
+		 * Return whether this build has a file url
+		 * 
+		 * @return boolean
+		 */
+		public function hasFileURL()
+		{
+			return (bool) ($this->_file_url != '');
+		}
+		
+		/**
+		 * Whether this build has any download associated with it
+		 * 
+		 * @return boolean
+		 */
+		public function hasDownload()
+		{
+			return (bool) ($this->getFile() instanceof TBGFile || $this->_file_url != '');
+		}
+		
+		public function isArchived()
+		{
+			return $this->isLocked();
+		}
+		
+		public function isActive()
+		{
+			return !$this->isLocked();
+		}
+		
+		/**
+		 * Returns the complete version number
+		 *
+		 * @return string
+		 */
+		public function getVersion()
+		{
+			return $this->_version_major . '.' . $this->_version_minor . '.' . $this->_version_revision;
+		}
+
+		/**
+		 * Set the version
+		 *
+		 * @param integer $ver_mj Major version number
+		 * @param integer $ver_mn Minor version number
+		 * @param integer $ver_rev Version revision
+		 */
+		public function setVersion($ver_mj, $ver_mn, $ver_rev)
+		{
+			$ver_mj = ((int) $ver_mj > 0) ? (int) $ver_mj : 0;
+			$ver_mn = ((int) $ver_mn > 0) ? (int) $ver_mn : 0;
+			$ver_rev = ((int) $ver_rev > 0) ? (int) $ver_rev : 0;
+
+			$this->_version_major = $ver_mj;
+			$this->_version_minor = $ver_mn;
+			$this->_version_revision = $ver_rev;
+		}
+
+		/**
+		 * Set the major version number
+		 *
+		 * @param $ver_mj
+		 */
+		public function setVersionMajor($ver_mj)
+		{
+			$ver_mj = ((int) $ver_mj > 0) ? (int) $ver_mj : 0;
+			$this->_version_major = $ver_mj;
+		}
+
+		/**
+		 * Set the minor version number
+		 *
+		 * @param $ver_mn
+		 */
+		public function setVersionMinor($ver_mn)
+		{
+			$ver_mn = ((int) $ver_mn > 0) ? (int) $ver_mn : 0;
+			$this->_version_minor = $ver_mn;
+		}
+
+		/**
+		 * Set the version revision number
+		 *
+		 * @param $ver_rev
+		 */
+		public function setVersionRevision($ver_rev)
+		{
+			$ver_rev = ((int) $ver_rev > 0) ? (int) $ver_rev : 0;
+			$this->_version_revision = $ver_rev;
+		}
+
+		/**
+		 * Returns the major version number
+		 *
+		 * @return integer
+		 */
+		public function getVersionMajor()
+		{
+			return $this->_version_major;
+		}
+
+		/**
+		 * Returns the minor version number
+		 *
+		 * @return integer
+		 */
+		public function getVersionMinor()
+		{
+			return $this->_version_minor;
+		}
+
+		/**
+		 * Returns revision number
+		 *
+		 * @return mixed
+		 */
+		public function getVersionRevision()
+		{
+			return $this->_version_revision;
+		}
+
+		/**
+		 * Returns whether or not this item is locked
+		 *
+		 * @return boolean
+		 * @access public
+		 */
+		public function isLocked()
+		{
+			return $this->_locked;
+		}
+
+		/**
+		 * Specify whether or not this item is locked
+		 *
+		 * @param boolean $locked[optional]
+		 */
+		public function setLocked($locked = true)
+		{
+			$this->_locked = (bool) $locked;
+		}
+
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 	}

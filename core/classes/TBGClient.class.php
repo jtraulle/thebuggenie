@@ -15,20 +15,29 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGClientsTable")
 	 */
-	class TBGClient extends TBGIdentifiableClass 
+	class TBGClient extends TBGIdentifiableScopedClass
 	{
-		
-		static protected $_b2dbtablename = 'TBGClientsTable';
 		
 		protected $_members = null;
 
 		protected $_num_members = null;
 		
 		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
+		/**
 		 * Email of client
 		 * 
 		 * @param string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_email = null;
 		
@@ -36,6 +45,7 @@
 		 * Telephone number of client
 		 * 
 		 * @param integer
+		 * @Column(type="string", length=200)
 		 */
 		protected $_telephone = null;
 		
@@ -43,6 +53,7 @@
 		 * URL for client website
 		 * 
 		 * @param string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_website = null;
 		
@@ -50,6 +61,7 @@
 		 * Fax number of client
 		 * 
 		 * @param integer
+		 * @Column(type="string", length=200)
 		 */
 		protected $_fax = null;
 		
@@ -64,14 +76,7 @@
 		{
 			if (self::$_clients === null)
 			{
-				self::$_clients = array();
-				if ($res = B2DB::getTable('TBGClientsTable')->getAll())
-				{
-					while ($row = $res->getNextRow())
-					{
-						self::$_clients[$row->get(TBGClientsTable::ID)] = TBGContext::factory()->TBGClient($row->get(TBGClientsTable::ID), $row);
-					}
-				}
+				self::$_clients = TBGClientsTable::getTable()->getAll();
 			}
 			return self::$_clients;
 		}
@@ -84,11 +89,6 @@
 		public function __toString()
 		{
 			return "" . $this->_name;
-		}
-		
-		public function getType()
-		{
-			return self::TYPE_CLIENT;
 		}
 		
 		/**
@@ -172,32 +172,17 @@
 		}
 		
 		/**
-		 * Creates a client
-		 *
-		 * @param unknown_type $groupname
-		 * @return TBGClient
-		 */
-		public static function createNew($clientname)
-		{
-			$crit = new B2DBCriteria();
-			$crit->addInsert(TBGClientsTable::NAME, $clientname);
-			$crit->addInsert(TBGClientsTable::SCOPE, TBGContext::getScope()->getID());
-			$res = B2DB::getTable('TBGClientsTable')->doInsert($crit);
-			return TBGContext::factory()->TBGClient($res->getInsertID());
-		}
-		
-		/**
 		 * Adds a user to the client
 		 *
 		 * @param TBGUser $user
 		 */
 		public function addMember(TBGUser $user)
 		{
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addInsert(TBGClientMembersTable::SCOPE, TBGContext::getScope()->getID());
 			$crit->addInsert(TBGClientMembersTable::CID, $this->_id);
 			$crit->addInsert(TBGClientMembersTable::UID, $user->getID());
-			B2DB::getTable('TBGClientMembersTable')->doInsert($crit);
+			\b2db\Core::getTable('TBGClientMembersTable')->doInsert($crit);
 			if ($this->_members === null)
 			{
 				$this->_members = array();
@@ -226,13 +211,13 @@
 		 */
 		public function removeMember($uid)
 		{
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addWhere(TBGClientMembersTable::UID, $uid);
 			$crit->addWhere(TBGClientMembersTable::CID, $this->_id);
-			B2DB::getTable('TBGClientMembersTable')->doDelete($crit);
+			\b2db\Core::getTable('TBGClientMembersTable')->doDelete($crit);
 		}
 		
-		public function _preDelete()
+		protected function _preDelete()
 		{
 			$crit = TBGClientMembersTable::getTable()->getCriteria();
 			$crit->addWhere(TBGClientMembersTable::CID, $this->getID());
@@ -241,10 +226,10 @@
 		
 		public static function findClients($details)
 		{
-			$crit = new B2DBCriteria();
-			$crit->addWhere(TBGClientsTable::NAME, "%$details%", B2DBCriteria::DB_LIKE);
+			$crit = new \b2db\Criteria();
+			$crit->addWhere(TBGClientsTable::NAME, "%$details%", \b2db\Criteria::DB_LIKE);
 			$clients = array();
-			if ($res = B2DB::getTable('TBGClientsTable')->doSelect($crit))
+			if ($res = \b2db\Core::getTable('TBGClientsTable')->doSelect($crit))
 			{
 				while ($row = $res->getNextRow())
 				{
@@ -273,4 +258,24 @@
 			return (bool) (TBGContext::getUser()->hasPageAccess('clientlist') || TBGContext::getUser()->isMemberOfClient($this));
 		}
 		
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 	}

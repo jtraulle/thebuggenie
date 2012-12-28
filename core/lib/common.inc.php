@@ -26,12 +26,12 @@
 	 * 
 	 * @return string The truncated string
 	 */
-	function tbg_truncateText($text, $length, $add_dots = true)
+	function tbg_truncateText($text, $length, $add_dots = true, $ignore_linebreaks = false)
 	{
 		if (mb_strlen($text) > $length)
 		{
-			$string = wordwrap($text, $length - 3);
-			$text = mb_substr($string, 0, mb_strpos($string, "\n"));
+			$string = wordwrap($text, $length - 3, '|||WORDWRAP|||');
+			$text = mb_substr($string, 0, mb_strpos($string, "|||WORDWRAP|||"));
 			if ($add_dots) $text .= '...';
 		}
 		return $text;
@@ -60,20 +60,15 @@
 	 *
 	 * @param integer $tstamp the timestamp to format
 	 * @param integer $format[optional] the format
-	 * @param integer $skiptimestamp
+	 * @param integer $skipusertimestamp ignore user timestamp
 	 */
-	function tbg_formatTime($tstamp, $format = 0)
+	function tbg_formatTime($tstamp, $format = 0, $skipusertimestamp = false, $skiptimestamp = false)
 	{
 		// offset the timestamp properly
-		if (TBGSettings::getGMToffset() > 0)
-			$tstamp += TBGSettings::getGMToffset() * 60 * 60;
-		elseif (TBGSettings::getGMToffset() < 0)
-			$tstamp -= TBGSettings::getGMToffset() * 60 * 60;
-
-		if (TBGSettings::getUserTimezone() > 0)
-			$tstamp += TBGSettings::getUserTimezone() * 60 * 60;
-		elseif (TBGSettings::getUserTimezone() < 0)
-			$tstamp -= TBGSettings::getUserTimezone() * 60 * 60;
+		if (!$skiptimestamp)
+		{
+			$tstamp += tbg_get_timezone_offset($skiptimestamp);
+		}
 			
 		switch ($format)
 		{
@@ -179,10 +174,7 @@
 				$tstring = strftime(TBGContext::getI18n()->getDateTimeFormat(13), $tstamp);
 				break;
 			case 18:
-				$old = date_default_timezone_get();
-				date_default_timezone_set('UTC');
 				$tstring = strftime(TBGContext::getI18n()->getDateTimeFormat(16), $tstamp);
-				date_default_timezone_set($old);
 				break;
 			case 19:
 				$tstring = strftime(TBGContext::getI18n()->getDateTimeFormat(14), $tstamp);
@@ -207,10 +199,54 @@
 				}
 				break;
 			case 21:
-				$tstring = (TBGContext::isCLI()) ? strftime('%a, %d %b %Y %H:%M:%S GMT', $tstamp) : strftime(TBGContext::getI18n()->getDateTimeFormat(17), $tstamp);
-				if (TBGContext::getUser()->getTimezone() > 0) $tstring .= '+';
-				if (TBGContext::getUser()->getTimezone() < 0) $tstring .= '-';
-				if (TBGContext::getUser()->getTimezone() != 0) $tstring .= TBGContext::getUser()->getTimezone();
+				$tstring = strftime('%a, %d %b %Y %H:%M:%S ', $tstamp);
+				if (!$skipusertimestamp && TBGSettings::getUserTimezone() != 'sys')
+				{
+					if (TBGSettings::getUserTimezone() != 0)
+					{
+						$offset = TBGSettings::getUserTimezone() * 100;
+					}
+				}
+				elseif (TBGSettings::getGMToffset() != 0)
+				{
+					$offset = TBGSettings::getGMToffset() * 100;
+				}
+				
+				if (!isset($offset))
+				{
+					$offset = 'GMT';
+				}
+				
+				if ($offset == 0)
+				{
+					$offset = 'GMT';
+				}
+				elseif ($offset != 'GMT')
+				{
+					$negative = false;
+					if (strstr($offset, '-'))
+					{
+						$offset = trim($offset, '-');
+						$negative = true;
+					}
+					
+					if ($offset < 1000)
+					{
+						$offset = '0'.$offset;
+					}
+					
+					if ($negative)
+					{
+						$offset = '-'.$offset;
+					}
+					else
+					{
+						$offset = '+'.$offset;
+					}
+				}
+
+				$tstring .= $offset;
+				return ($tstring);
 				break;
 			case 22:
 				$tstring = strftime(TBGContext::getI18n()->getDateTimeFormat(15), $tstamp);
@@ -237,7 +273,7 @@
 			default:
 				return $tstamp;
 		}
-		return htmlentities($tstring);
+		return htmlentities($tstring, ENT_NOQUOTES+ENT_IGNORE, TBGContext::getI18n()->getCharset());
 	}
 
 	function tbg_parse_text($text, $toc = false, $article_id = null, $options = array())
@@ -263,7 +299,7 @@
 	 */
 	function tbg_decodeUTF8($str, $htmlentities = false)
 	{
-		if (tbg_isUTF8($str) && !stristr(TBGContext::getI18n()->getCharset(), 'UTF-8'))
+		if (tbg_isUTF8($str) && !mb_stristr(TBGContext::getI18n()->getCharset(), 'UTF-8'))
 		{
 			$str = utf8_decode($str);
 		}
@@ -341,3 +377,74 @@
 	{
 		return TBGContext::getResponse()->getPredefinedBreadcrumbLinks($type, $project);
 	}
+
+	function tbg_get_javascripts()
+	{
+		$tbg_response = TBGContext::getResponse();
+		$tbg_response->addJavascript('prototype.js', true, true);
+		$tbg_response->addJavascript('jquery-1.6.2.min.js', true, true);
+		$tbg_response->addJavascript('builder.js');
+		$tbg_response->addJavascript('effects.js');
+		$tbg_response->addJavascript('dragdrop.js');
+		$tbg_response->addJavascript('controls.js');
+		$tbg_response->addJavascript('jquery.markitup.js');
+		$tbg_response->addJavascript('thebuggenie.js');
+		$tbg_response->addJavascript('tablekit.js');
+
+		$jsstrings = array();
+		$sepjs = array();
+
+		// Add scripts to minify and non-minify lists
+		foreach ($tbg_response->getJavascripts() as $script => $minify)
+		{
+			if ($minify == true && file_exists(THEBUGGENIE_PATH . THEBUGGENIE_PUBLIC_FOLDER_NAME . DIRECTORY_SEPARATOR . 'js' . DIRECTORY_SEPARATOR . $script))
+				$jsstrings[] = 'js/'.$script;
+			else
+				$sepjs[] = $script;
+		}
+
+		$jsstrings = join(',', $jsstrings);
+
+		return array($jsstrings, $sepjs);
+	}
+
+	function tbg_get_stylesheets()
+	{
+		$tbg_response = TBGContext::getResponse();
+		$cssstrings = array();
+		$sepcss = array();
+
+		// Add stylesheets to minify and non-minify lists
+		foreach ($tbg_response->getStylesheets() as $stylesheet => $minify)
+		{
+			if ($minify == true && file_exists(THEBUGGENIE_PATH . THEBUGGENIE_PUBLIC_FOLDER_NAME . DIRECTORY_SEPARATOR . 'themes' . DIRECTORY_SEPARATOR . TBGSettings::getThemeName() . DIRECTORY_SEPARATOR .$stylesheet))
+				$cssstrings[] = 'themes/'.TBGSettings::getThemeName().'/'.$stylesheet;
+			else
+				$sepcss[] = $stylesheet;
+		}
+
+		$cssstrings = join(',', $cssstrings);
+
+		return array($cssstrings, $sepcss);
+	}
+	
+	function tbg_get_timezone_offset($skipusertimestamp = false)
+	{
+		$tstamp = 0;
+		
+		// offset the timestamp properly
+		if (!$skipusertimestamp && TBGSettings::getUserTimezone() != 'sys')
+		{
+			if (TBGSettings::getUserTimezone() != 0)
+			{
+				$tstamp = TBGSettings::getUserTimezone() * 60 * 60;
+			}
+		}
+		elseif (TBGSettings::getGMToffset() != 0)
+		{
+			$tstamp = TBGSettings::getGMToffset() * 60 * 60;
+		}
+		
+		return $tstamp;
+	}
+	

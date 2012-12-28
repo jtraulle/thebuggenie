@@ -460,7 +460,6 @@
        if ( $DataDescription["Format"]["Y"] == "metric" )
         $Value = $this->ToMetric($Value);        
 
-	   //var_dump($this->FontName);die();
        $Position  = imageftbbox($this->FontSize,0,$this->FontName,$Value);
        $TextWidth = $Position[2]-$Position[0];
        imagettftext($this->Picture,$this->FontSize,0,$this->GArea_X1-10-$TextWidth,$YPos+($this->FontSize/2),$C_TextColor,$this->FontName,$Value);
@@ -2665,9 +2664,9 @@
      $Minute = floor(($Value - $Hour*3600)/60);
      $Second = floor($Value - $Hour*3600 - $Minute*60);
 
-     if (strlen($Hour) == 1 )   { $Hour = "0".$Hour; }
-     if (strlen($Minute) == 1 ) { $Minute = "0".$Minute; }
-     if (strlen($Second) == 1 ) { $Second = "0".$Second; }
+     if (mb_strlen($Hour) == 1 )   { $Hour = "0".$Hour; }
+     if (mb_strlen($Minute) == 1 ) { $Minute = "0".$Minute; }
+     if (mb_strlen($Second) == 1 ) { $Second = "0".$Second; }
 
      return($Hour.":".$Minute.":".$Second);
     }

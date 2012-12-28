@@ -15,29 +15,54 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGModulesTable")
 	 */
-	abstract class TBGModule extends TBGIdentifiableClass 
+	abstract class TBGModule extends TBGIdentifiableScopedClass
 	{
 
-		static protected $_b2dbtablename = 'TBGModulesTable';
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
+		/**
+		 * @var string
+		 * @Column(type="string", length=100)
+		 */
 		protected $_classname = '';
-		protected $_description = '';
+
+		/**
+		 * @var boolean
+		 * @Column(type="boolean")
+		 */
 		protected $_enabled = false;
+
+		/**
+		 * @var string
+		 * @Column(type="string", length=10)
+		 */
+		protected $_version = '';
+
 		protected $_longname = '';
-		protected $_showinconfig = false;
 		protected $_shortname = '';
+		protected $_showinconfig = false;
 		protected $_module_config_title = '';
 		protected $_module_config_description = '';
-		protected $_version = '';
+		protected $_description = '';
 		protected $_availablepermissions = array();
 		protected $_settings = array();
 		protected $_routes = array();
+
 		protected $_has_account_settings = false;
 		protected $_account_settings_name = null;
 		protected $_account_settings_logo = null;
 		protected $_has_config_settings = false;
 		
-		static protected $_permissions = array();
+		protected static $_permissions = array();
 		
 		const MODULE_NORMAL = 1;
 		const MODULE_AUTH = 2;
@@ -55,12 +80,12 @@
 			$module_classpath = $module_basepath . DS . "classes";
 
 			if ($scope === null || $scope->getID() == TBGContext::getScope()->getID())
-				TBGContext::addClasspath($module_classpath);
+				TBGContext::addAutoloaderClassPath($module_classpath);
 			
 			$scope_id = ($scope) ? $scope->getID() : TBGContext::getScope()->getID();
 			$module_details = file_get_contents($module_basepath . DS . 'class');
 
-			if (strpos($module_details, '|') === false)
+			if (mb_strpos($module_details, '|') === false)
 				throw new Exception("Need to have module details in the form of ModuleName|version in the {$module_basepath}/class file");
 
 			$details = explode('|', $module_details);
@@ -146,10 +171,12 @@
 
 		protected function _uninstall() { }
 
+		protected function _upgrade() { }
+
 		/**
 		 * Class constructor
 		 */
-		final public function _construct(B2DBRow $row, $foreign_key = null)
+		final public function _construct(\b2db\Row $row, $foreign_key = null)
 		{
 			if ($this->_version != $row->get(TBGModulesTable::VERSION))
 			{
@@ -163,18 +190,20 @@
 		{
 			try
 			{
+				TBGContext::clearRoutingCache();
+				TBGContext::clearPermissionsCache();
 				$this->_install($scope);
 				$b2db_classpath = THEBUGGENIE_MODULES_PATH . $this->_name . DS . 'classes' . DS . 'B2DB';
 
 				if (TBGContext::getScope()->isDefault() && is_dir($b2db_classpath))
 				{
-					TBGContext::addClasspath($b2db_classpath);
+					TBGContext::addAutoloaderClassPath($b2db_classpath);
 					$b2db_classpath_handle = opendir($b2db_classpath);
 					while ($table_class_file = readdir($b2db_classpath_handle))
 					{
-						if (($tablename = substr($table_class_file, 0, strpos($table_class_file, '.'))) != '')
+						if (($tablename = mb_substr($table_class_file, 0, mb_strpos($table_class_file, '.'))) != '')
 						{
-							B2DB::getTable($tablename)->create();
+							\b2db\Core::getTable($tablename)->create();
 						}
 					}
 				}
@@ -214,12 +243,19 @@
 
 		public function enable()
 		{
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addUpdate(TBGModulesTable::ENABLED, 1);
-			B2DB::getTable('TBGModulesTable')->doUpdateById($crit, $this->getID());
+			\b2db\Core::getTable('TBGModulesTable')->doUpdateById($crit, $this->getID());
 			$this->_enabled = true;
 		}
 		
+		final public function upgrade()
+		{
+			TBGContext::clearRoutingCache();
+			TBGContext::clearPermissionsCache();
+			$this->_upgrade();
+		}
+
 		final public function uninstall($scope = null)
 		{
 			if ($this->isCore())
@@ -228,9 +264,11 @@
 			}
 			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
 			$this->_uninstall($scope);
-			B2DB::getTable('TBGModulesTable')->doDeleteById($this->getID());
+			\b2db\Core::getTable('TBGModulesTable')->doDeleteById($this->getID());
 			TBGSettings::deleteModuleSettings($this->getName(), $scope);
 			TBGContext::deleteModulePermissions($this->getName(), $scope);
+			TBGContext::clearRoutingCache();
+			TBGContext::clearPermissionsCache();
 		}
 		
 		public function getClassname()
@@ -248,16 +286,6 @@
 			throw new Exception('Trying to call function ' . $func . '() in module ' . $this->_shortname . ', but the function does not exist');
 		}
 		
-		public function getID()
-		{
-			return $this->_id;
-		}
-		
-		public function getName()
-		{
-			return $this->_name;
-		}
-
 		public function setLongName($name)
 		{
 			$this->_longname = $name;
@@ -286,8 +314,8 @@
 		public function setPermission($uid, $gid, $tid, $allowed, $scope = null)
 		{
 			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
-			B2DB::getTable('TBGModulePermissionsTable')->deleteByModuleAndUIDandGIDandTIDandScope($this->getName(), $uid, $gid, $tid, $scope);
-			B2DB::getTable('TBGModulePermissionsTable')->setPermissionByModuleAndUIDandGIDandTIDandScope($this->getName(), $uid, $gid, $tid, $allowed, $scope);
+			\b2db\Core::getTable('TBGModulePermissionsTable')->deleteByModuleAndUIDandGIDandTIDandScope($this->getName(), $uid, $gid, $tid, $scope);
+			\b2db\Core::getTable('TBGModulePermissionsTable')->setPermissionByModuleAndUIDandGIDandTIDandScope($this->getName(), $uid, $gid, $tid, $allowed, $scope);
 			if ($scope == TBGContext::getScope()->getID())
 			{
 				self::cacheAccessPermission($this->getName(), $uid, $gid, $tid, 0, $allowed);
@@ -355,7 +383,26 @@
 		 */
 		public function isEnabled()
 		{
+			/* Outdated modules can not be used */
+			if ($this->isOutdated())
+			{
+				return false;
+			}
 			return $this->_enabled;
+		}
+		
+		/**
+		 * Returns whether the module is out of date
+		 * 
+		 * @return boolean
+		 */
+		public function isOutdated()
+		{
+			if ($this->_version != $this->_module_version)
+			{
+				return true;
+			}
+			return false;
 		}
 		
 		public function addRoute($key, $url, $function, $params = array(), $csrf_enabled = false, $module_name = null)
@@ -371,7 +418,7 @@
 			{
 				$this->_addAvailablePermissions();
 				$this->_addListeners();
-				if (!TBGCache::has(TBGCache::KEY_POSTMODULES_ROUTES_CACHE))
+				if (!TBGCache::has(TBGCache::KEY_POSTMODULES_ROUTES_CACHE, false))
 				{
 					$this->_addRoutes();
 					$this->_loadRoutes();
@@ -402,7 +449,7 @@
 		public static function getAllModulePermissions($module, $uid, $tid, $gid)
 		{
 	
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addWhere(TBGModulePermissionsTable::MODULE_NAME, $module);
 			//$sql = "select b2mp.allowed from tbg_2_modulepermissions b2mp where b2mp.module_name = '$module'";
 			switch (true)
@@ -428,12 +475,12 @@
 			//$sql .= " AND b2mp.scope = " . TBGContext::getScope()->getID();
 			$crit->addWhere(TBGModulePermissionsTable::SCOPE, TBGContext::getScope()->getID());
 	
-			//$res = b2db_sql_query($sql, B2DB::getDBlink());
+			//$res = b2db_sql_query($sql, \b2db\Core::getDBlink());
 	
 			#print $sql;
 	
 			$permissions = array();
-			$res = B2DB::getTable('TBGModulePermissionsTable')->doSelect($crit);
+			$res = \b2db\Core::getTable('TBGModulePermissionsTable')->doSelect($crit);
 	
 			while ($row = $res->getNextRow())
 			{
@@ -470,7 +517,7 @@
 
 		public function getAccountSettingsName()
 		{
-			return $this->_account_settings_name;
+			return TBGContext::geti18n()->__($this->_account_settings_name);
 		}
 
 		public function setAccountSettingsLogo($logo)
@@ -490,6 +537,9 @@
 
 		public function hasConfigSettings()
 		{
+			/* If the module is outdated, we may not access its settings */
+			if ($this->isOutdated()): return false; endif;
+			
 			return $this->_has_config_settings;
 		}
 
@@ -511,6 +561,26 @@
 		public function postAccountSettings(TBGRequest $request)
 		{
 
+		}
+
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
 		}
 
 	}

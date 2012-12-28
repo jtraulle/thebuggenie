@@ -17,26 +17,25 @@
 			$i18n = TBGContext::getI18n();
 
 			$this->article = null;
-			$this->article_name = $request->getParameter('article_name');
+			$this->article_name = $request['article_name'];
 
-			if ($request->hasParameter('article_name') && strpos($request->getParameter('article_name'), ':') !== false)
+			if ($request->hasParameter('article_name') && mb_strpos($request['article_name'], ':') !== false)
 			{
-
-				$namespace = substr($this->article_name, 0, strpos($this->article_name, ':'));
-				$article_name = substr($this->article_name, strpos($this->article_name, ':') + 1);
+				$namespace = mb_substr($this->article_name, 0, mb_strpos($this->article_name, ':'));
+				$article_name = mb_substr($this->article_name, mb_strpos($this->article_name, ':') + 1);
 
 				if ($namespace == 'Category')
 				{
-					$namespace = substr($article_name, 0, strpos($article_name, ':'));
-					$article_name = substr($article_name, strpos($article_name, ':') + 1);
+					$namespace = mb_substr($article_name, 0, mb_strpos($article_name, ':'));
+					$article_name = mb_substr($article_name, mb_strpos($article_name, ':') + 1);
 				}
 				
 				if ($namespace != '')
 				{
-					$key = strtolower($namespace);
+					$key = mb_strtolower($namespace);
 					$row = TBGProjectsTable::getTable()->getByKey($key);
 					
-					if ($row instanceof B2DBRow)
+					if ($row instanceof \b2db\Row)
 					{
 						$project = TBGContext::factory()->TBGProject($row->get(TBGProjectsTable::ID), $row);
 						
@@ -51,13 +50,13 @@
 			{
 				try
 				{
-					if ($project_key = $request->getParameter('project_key'))
+					if ($project_key = $request['project_key'])
 					{
 						$row = TBGProjectsTable::getTable()->getByKey($project_key);
 						
 						$this->selected_project = TBGContext::factory()->TBGProject($row->get(TBGProjectsTable::ID), $row);
 					}
-					elseif ($project_id = (int) $request->getParameter('project_id'))
+					elseif ($project_id = (int) $request['project_id'])
 						$this->selected_project = TBGContext::factory()->TBGProject($project_id);
 
 					if ($this->selected_project instanceof TBGProject)
@@ -96,10 +95,10 @@
 				}
 				else
 				{
-					if (!$request->hasParameter('no_redirect') && substr($this->article->getContent(), 0, 10) == "#REDIRECT ")
+					if (!$request->hasParameter('no_redirect') && mb_substr($this->article->getContent(), 0, 10) == "#REDIRECT ")
 					{
 						$content = explode("\n", $this->article->getContent());
-						preg_match('/(\[\[([^\]]*?)\]\])$/im', substr(array_shift($content), 10), $matches);
+						preg_match('/(\[\[([^\]]*?)\]\])$/im', mb_substr(array_shift($content), 10), $matches);
 						if (count($matches) == 3)
 						{
 							$redirect_article = $matches[2];
@@ -111,7 +110,7 @@
 					{
 						if ($request->hasParameter('revision'))
 						{
-							$this->revision = $request->getParameter('revision');
+							$this->revision = $request['revision'];
 							$this->article->setRevision($this->revision);
 						}
 					}
@@ -132,6 +131,7 @@
 		{
 			if ($this->article instanceof TBGWikiArticle)
 			{
+				$this->forward403unless($this->article->canEdit());
 				$namespaces = $this->article->getCombinedNamespaces();
 				$namespaces[] = $this->article->getName();
 				array_unshift($namespaces, 0);
@@ -141,9 +141,9 @@
 		
 		public function runArticleHistory(TBGRequest $request)
 		{
-			$this->history_action = $request->getParameter('history_action');
+			$this->history_action = $request['history_action'];
 			if ($this->article instanceof TBGWikiArticle)
-			{
+			{	
 				$this->history = $this->article->getHistory();
 				$this->revision_count = count($this->history);
 
@@ -152,8 +152,8 @@
 					case 'list':
 						break;
 					case 'diff':
-						$from_revision = $request->getParameter('from_revision');
-						$to_revision = $request->getParameter('to_revision');
+						$from_revision = $request['from_revision'];
+						$to_revision = $request['to_revision'];
 
 						if (!$from_revision || !$to_revision)
 						{
@@ -174,16 +174,17 @@
 						}
 						break;
 					case 'revert':
+						$article_name = $this->article->getName();
 						if (!TBGContext::getModule('publish')->canUserEditArticle($article_name))
 						{
 							TBGContext::setMessage('publish_article_error', TBGContext::getI18n()->__('You do not have permission to edit this article'));
 							$this->forward(TBGContext::getRouting()->generate('publish_article_history', array('article_name' => $article_name)));
 						}
-						$revision = $request->getParameter('revision');
+						$revision = $request['revision'];
 						if ($revision)
 						{
 							$this->article->restoreRevision($revision);
-							$this->forward(TBGContext::getRouting()->generate('publish_article_history', array('article_name' => $this->article->getName())));
+							$this->forward(TBGContext::getRouting()->generate('publish_article_history', array('article_name' => $article_name)));
 						}
 						else
 						{
@@ -200,17 +201,31 @@
 		 */
 		public function runDeleteArticle(TBGRequest $request)
 		{
-			if (!TBGContext::getModule('publish')->canUserDeleteArticle($this->article->getName()))
+			try
 			{
-				TBGContext::setMessage('publish_article_error', TBGContext::getI18n()->__('You do not have permission to delete this article'));
-				$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $this->article->getName())));
+				if (!$this->article instanceof TBGWikiArticle)
+				{
+					throw new Exception($this->getI18n()->__('This article does not exist'));
+				}
+				if (!TBGContext::getModule('publish')->canUserDeleteArticle($this->article->getName()))
+				{
+					throw new Exception($this->getI18n()->__('You do not have permission to delete this article'));
+				}
+				if (!$request['article_name'])
+				{
+					throw new Exception($this->getI18n()->__('Please specify an article name'));
+				}
+				else
+				{
+					TBGWikiArticle::deleteByName($request['article_name']);
+				}
 			}
-			if ($article_name = $request->getParameter('article_name'))
+			catch (Exception $e)
 			{
-				TBGWikiArticle::deleteByName($article_name);
-				TBGContext::setMessage('publish_article_error', TBGContext::getI18n()->__('The article was deleted'));
-				$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $article_name)));
+				$this->getResponse()->setHttpStatus(400);
+				return $this->renderJSON(array('title' => $this->getI18n()->__('An error occured'), 'error' => $e->getMessage()));
 			}
+			return $this->renderJSON(array('message' => $this->getI18n()->__('The article was deleted')));
 		}
 
 		/**
@@ -220,25 +235,25 @@
 		 */
 		public function runEditArticle(TBGRequest $request)
 		{
-			$article_name = ($this->article instanceof TBGWikiArticle) ? $this->article->getName() : $request->getParameter('article_name');
+			$article_name = ($this->article instanceof TBGWikiArticle) ? $this->article->getName() : $request['article_name'];
 			if (!TBGContext::getModule('publish')->canUserEditArticle($article_name))
 			{
 				TBGContext::setMessage('publish_article_error', TBGContext::getI18n()->__('You do not have permission to edit this article'));
 				$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $article_name)));
 			}
-			if ($request->isMethod(TBGRequest::POST))
+			if ($request->isPost())
 			{
-				if ($request->hasParameter('new_article_name') && $request->getParameter('new_article_name') != '')
+				if ($request->hasParameter('new_article_name') && $request['new_article_name'] != '' && preg_match('/[\w:]+/i', $request['new_article_name']) )
 				{
-					if ($request->hasParameter('change_reason') && trim($request->getParameter('change_reason')) != '')
+					if (($request->hasParameter('change_reason') && trim($request['change_reason']) != '') || TBGPublish::getModule()->getSetting('require_change_reason') == 0)
 					{
 						try
 						{
-							if ($request->getParameter('article_id'))
+							if ($request['article_id'])
 							{
-								if (($article = PublishFactory::article($request->getParameter('article_id'))) && $article instanceof TBGWikiArticle)
+								if (($article = PublishFactory::article($request['article_id'])) && $article instanceof TBGWikiArticle)
 								{
-									if ($article->getLastUpdatedDate() != $request->getParameter('last_modified'))
+									if ($article->getLastUpdatedDate() != $request['last_modified'])
 									{
 										$this->error = TBGContext::getI18n()->__('The file has been modified since you last opened it');
 									}
@@ -246,15 +261,15 @@
 									{
 										try
 										{
-											$article->setName($request->getParameter('new_article_name'));
+											$article->setName($request['new_article_name']);
 											$article->setContent($request->getRawParameter('new_article_content'));
-											if ($request->getParameter('preview'))
+											if ($request['preview'])
 											{
 												$this->article = $article;
 											}
 											else
 											{
-												$article->doSave(array(), $request->getParameter('change_reason'));
+												$article->doSave(array(), $request['change_reason']);
 												TBGContext::setMessage('publish_article_message', TBGContext::getI18n()->__('The article was saved'));
 												$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $article->getName())));
 											}
@@ -269,24 +284,23 @@
 						}
 						catch (Exception $e) {}
 
-						if (($article = TBGWikiArticle::getByName($request->getParameter('new_article_name'))) && $article instanceof TBGWikiArticle && $article->getID() != $request->getParameter('article_id'))
+						if (($article = TBGWikiArticle::getByName($request['new_article_name'])) && $article instanceof TBGWikiArticle && $article->getID() != $request['article_id'])
 						{
 							$this->error = TBGContext::getI18n()->__('An article with that name already exists. Please choose a different article name');
 						}
 						elseif (!$article instanceof TBGWikiArticle)
 						{
-							if ($request->getParameter('preview'))
+							if ($request['preview'])
 							{
 								$article = new TBGWikiArticle();
 								$article->setContent($request->getRawParameter('new_article_content'));
-								$article->setName($request->getParameter('new_article_name'));
-								$this->article = $article;
-							}
+								$article->setName($request['new_article_name']);
+								$this->article = $article;							}
 							else
 							{
-								$article_id = TBGWikiArticle::createNew($request->getParameter('new_article_name'), $request->getRawParameter('new_article_content', ''), true);
+								$article_id = TBGWikiArticle::createNew($request['new_article_name'], $request->getRawParameter('new_article_content', ''), true);
 
-								$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $request->getParameter('new_article_name'))));
+								$this->forward(TBGContext::getRouting()->generate('publish_article', array('article_name' => $request['new_article_name'])));
 							}
 
 						}
@@ -298,25 +312,27 @@
 				}
 				else
 				{
-					$this->error = TBGContext::getI18n()->__('You need to specify the article name');
+					$this->error = TBGContext::getI18n()->__('You need to specify a valid article name');
 				}
 			}
-			$this->preview = (bool) $request->getParameter('preview');
+			$this->preview = (bool) $request['preview'];
 			$this->article_title = null;
 			$this->article_content = null;
 			$this->article_intro = null;
 			$this->change_reason = null;
-
+			
 			if ($this->article instanceof TBGWikiArticle)
 			{
+				$this->forward403unless($this->article->canEdit());
 				$this->article_title = $this->article->getTitle();
 				$this->article_content = $this->article->getContent();
 
-				if ($request->isMethod(TBGRequest::POST))
+				if ($request->isPost())
 				{
 					if ($request->hasParameter('new_article_name'))
 					{
-						$this->article_title = $request->getParameter('new_article_name');
+						$this->article_title = $request['new_article_name'];
+						$this->article->setName($request['new_article_name']);
 					}
 					if ($request->hasParameter('new_article_content'))
 					{
@@ -324,12 +340,13 @@
 					}
 					if ($request->hasParameter('change_reason'))
 					{
-						$this->change_reason = $request->getParameter('change_reason');
+						$this->change_reason = $request['change_reason'];
 					}
 				}
 			}
 			else
 			{
+				$this->forward403if(TBGContext::isProjectContext() && TBGContext::getCurrentProject()->isArchived());
 				if ($request->hasParameter('new_article_content'))
 				{
 					$this->article_content = $request->getRawParameter('new_article_content');
@@ -342,11 +359,11 @@
 		
 		public function runFindArticles(TBGRequest $request)
 		{
-			$this->articlename = $request->getParameter('articlename');
+			$this->articlename = $request['articlename'];
 			
 			if ($this->articlename)
 			{
-				list ($this->resultcount, $this->articles) = TBGWikiArticle::findByArticleNameAndProject($this->articlename, TBGContext::getCurrentProject(), 10);
+				list ($this->resultcount, $this->articles) = TBGWikiArticle::findArticlesByContentAndProject($this->articlename, TBGContext::getCurrentProject(), 10);
 			}
 		}
 

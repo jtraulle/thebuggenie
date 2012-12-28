@@ -15,17 +15,25 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGGroupsTable")
 	 */
-	class TBGGroup extends TBGIdentifiableClass 
+	class TBGGroup extends TBGIdentifiableScopedClass
 	{
 		
 		protected static $_groups = null;
-		
-		static protected $_b2dbtablename = 'TBGGroupsTable';
 
 		protected $_members = null;
 
 		protected $_num_members = null;
+
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
 
 		public static function doesGroupNameExist($group_name)
 		{
@@ -46,11 +54,6 @@
 				}
 			}
 			return self::$_groups;
-		}
-		
-		public function __toString()
-		{
-			return $this->_name;
 		}
 		
 		public static function postSave($is_new)
@@ -86,21 +89,51 @@
 			$guest_group->save();
 			
 			// Set up initial users, and their permissions
-			TBGUser::loadFixtures($scope, $admin_group, $user_group, $guest_group);
+			if ($scope->isDefault())
+			{
+				list($guestuser_id, $adminuser_id) = TBGUser::loadFixtures($scope, $admin_group, $user_group, $guest_group);
+				TBGUserScopesTable::getTable()->addUserToScope($guestuser_id, $scope->getID(), $guest_group->getID(), true);
+				TBGUserScopesTable::getTable()->addUserToScope($adminuser_id, $scope->getID(), $admin_group->getID(), true);
+			}
+			else
+			{
+				$default_scope_id = TBGSettings::getDefaultScopeID();
+				$default_user_id = (int) TBGSettings::get(TBGSettings::SETTING_DEFAULT_USER_ID, 'core', $default_scope_id);
+				TBGUserScopesTable::getTable()->addUserToScope($default_user_id, $scope->getID(), $user_group->getID(), true);
+				TBGUserScopesTable::getTable()->addUserToScope(1, $scope->getID(), $admin_group->getID());
+				TBGSettings::saveSetting(TBGSettings::SETTING_DEFAULT_USER_ID, $default_user_id, 'core', $scope->getID());
+			}
 			TBGPermissionsTable::getTable()->loadFixtures($scope, $admin_group->getID(), $guest_group->getID());
 		}
 		
-		public function _preDelete()
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
 		{
-			$crit = TBGUsersTable::getTable()->getCriteria();
-			$crit->addWhere(TBGUsersTable::GROUP_ID, $this->getID());
-			
-			if ($this->getID() == TBGSettings::getDefaultGroup()->getID())
-				$crit->addUpdate(TBGUsersTable::GROUP_ID, null);
-			else
-				$crit->addUpdate(TBGUsersTable::GROUP_ID, TBGSettings::getDefaultGroup()->getID());
+			return $this->_name;
+		}
 
-			$res = TBGUsersTable::getTable()->doUpdate($crit);
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
+		public function isDefaultUserGroup()
+		{
+			return (bool) (TBGSettings::getDefaultUser()->getGroupID() == $this->getID());
+		}
+
+		protected function _preDelete()
+		{
+			TBGUserScopesTable::getTable()->clearUserGroups($this->getID());
 		}
 
 		/**
@@ -112,15 +145,7 @@
 		{
 			if ($this->_members === null)
 			{
-				$this->_members = array();
-				if ($res = TBGUsersTable::getTable()->getUsersByGroupID($this->getID()))
-				{
-					while ($row = $res->getNextRow())
-					{
-						$uid = $row->get(TBGUsersTable::ID);
-						$this->_members[$uid] = TBGContext::factory()->TBGUser($uid);
-					}
-				}
+				$this->_members = TBGUserScopesTable::getTable()->getUsersByGroupID($this->getID());
 			}
 			return $this->_members;
 		}
@@ -133,7 +158,7 @@
 			}
 			elseif ($this->_num_members === null)
 			{
-				$this->_num_members = TBGUsersTable::getTable()->getNumberOfMembersByGroupID($this->getID());
+				$this->_num_members = TBGUserScopesTable::getTable()->countUsersByGroupID($this->getID());
 			}
 
 			return $this->_num_members;

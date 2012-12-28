@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Links table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="links")
 	 */
 	class TBGLinksTable extends TBGB2DBTable 
 	{
@@ -30,19 +36,9 @@
 		const TARGET_ID = 'links.target_id';
 		const SCOPE = 'links.scope';
 
-		/**
-		 * Return an instance of this table
-		 * 
-		 * @return TBGLinksTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGLinksTable');
-		}
-		
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::URL, 300);
 			parent::_addInteger(self::LINK_ORDER, 3);
 			parent::_addVarchar(self::TARGET_TYPE, 30);
@@ -58,7 +54,7 @@
 			if ($link_order === null)
 			{
 				$crit = $this->getCriteria();
-				$crit->addSelectionColumn(self::LINK_ORDER, 'max_order', B2DBCriteria::DB_MAX, '', '+1');
+				$crit->addSelectionColumn(self::LINK_ORDER, 'max_order', Criteria::DB_MAX, '', '+1');
 				$crit->addWhere(self::TARGET_TYPE, $target_type);
 				$crit->addWhere(self::TARGET_ID, $target_id);
 				$crit->addWhere(self::SCOPE, $scope);
@@ -87,12 +83,12 @@
 			$crit->addWhere(self::TARGET_TYPE, $target_type);
 			$crit->addWhere(self::TARGET_ID, $target_id);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addOrderBy(self::LINK_ORDER, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::LINK_ORDER, Criteria::SORT_ASC);
 			if ($res = $this->doSelect($crit, 'none'))
 			{
 				while ($row = $res->getNextRow())
 				{
-					$links[$row->get(self::ID)] = array('target_type' => $row->get(self::TARGET_TYPE), 'target_id' => $row->get(self::TARGET_ID), 'url' => $row->get(self::URL), 'description' => $row->get(self::DESCRIPTION));
+					$links[] = array('id' => $row->get(self::ID), 'target_type' => $row->get(self::TARGET_TYPE), 'target_id' => $row->get(self::TARGET_ID), 'url' => $row->get(self::URL), 'description' => $row->get(self::DESCRIPTION));
 				}
 			}
 			return $links;
@@ -138,14 +134,25 @@
 			return $this->addLink('main_menu', 0, $url, $description, $link_order, $scope);
 		}
 
+		public function saveLinkOrder($links)
+		{
+			foreach ($links as $key => $link_id)
+			{
+				$crit = $this->getCriteria();
+				$crit->addUpdate(self::LINK_ORDER, $key + 1);
+				$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+				$this->doUpdateById($crit, $link_id);
+			}
+		}
+
 		public function loadFixtures(TBGScope $scope)
 		{
 			$scope_id = $scope->getID();
 			
 			$this->addMainMenuLink('http://www.thebuggenie.com', 'The Bug Genie homepage', 1, $scope_id);
-			$this->addMainMenuLink('http://www.thebuggenie.com/forum', 'The Bug Genie forums', 2, $scope_id);
+			$this->addMainMenuLink('http://forum.thebuggenie.com', 'The Bug Genie forums', 2, $scope_id);
 			$this->addMainMenuLink(null, null, 3, $scope_id);
-			$this->addMainMenuLink('http://thebuggenie.com/thebuggenie', 'Online issue tracker', 4, $scope_id);
+			$this->addMainMenuLink('http://issues.thebuggenie.com', 'Online issue tracker', 4, $scope_id);
 			$this->addMainMenuLink('', "''This is the issue tracker for The Bug Genie''", 5, $scope_id);
 			$this->addMainMenuLink(null, null, 6, $scope_id);
 			$this->addMainMenuLink('http://thebuggenie.wordpress.com/', 'The Bug Genie team blog', 7, $scope_id);

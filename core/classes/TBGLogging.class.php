@@ -47,22 +47,21 @@
 		 */
 		public static function log($message, $category = 'main', $level = 1)
 		{
-			TBGContext::ping();
 			if (!self::$_logging_enabled) return false;
 			if (self::$_loglevel > $level) return false;
 			if (self::$_cli_log_to_screen_in_debug_mode && TBGContext::isCLI() && TBGContext::isDebugMode() && class_exists('TBGCliCommand'))
 			{
-				TBGCliCommand::cli_echo(strtoupper(self::getLevelName($level)), 'white', 'bold');
+				TBGCliCommand::cli_echo(mb_strtoupper(self::getLevelName($level)), 'white', 'bold');
 				TBGCliCommand::cli_echo(" [{$category}] ", 'green', 'bold');
 				TBGCliCommand::cli_echo("$message\n");
 			}
-			if (self::$_logonajaxcalls || !(isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] == '')))
+			if (self::$_logonajaxcalls || TBGContext::getRequest()->isAjaxCall())
 			{
 				if (self::$_logfile !== null)
 				{
-					file_put_contents(self::$_logfile, strtoupper(self::getLevelName($level)) . " [{$category}] {$message}\n", FILE_APPEND);
+					file_put_contents(self::$_logfile, mb_strtoupper(self::getLevelName($level)) . " [{$category}] {$message}\n", FILE_APPEND);
 				}
-				$time_msg = (($load_time = TBGContext::getLoadtime()) >= 1) ? round($load_time, 2) . ' seconds' : round(($load_time * 1000), 3) . ' ms';
+				$time_msg = (TBGContext::isDebugMode()) ? (($load_time = TBGContext::getLoadtime()) >= 1) ? round($load_time, 2) . ' seconds' : round(($load_time * 1000), 3) . ' ms' : '';
 				
 				self::$_entries[] = array('category' => $category, 'time' => $time_msg, 'message' => $message, 'level' => $level);
 				self::$_categorized_entries[$category][] = array('time' => $time_msg, 'message' => $message, 'level' => $level);
@@ -93,6 +92,15 @@
 				default:
 					return 'unknown';
 			}
+		}
+		
+		public static function setLogFilePath($filename)
+		{
+			if (!file_exists($filename))
+			{
+				throw new Exception('Invalid log filename');
+			}
+			self::$_logfile = $filename;
 		}
 
 		/**
@@ -185,6 +193,11 @@
 		public static function isEnabled()
 		{
 			return self::$_logging_enabled;
+		}
+
+		public static function setCLIDebug($value = true)
+		{
+			self::$_cli_log_to_screen_in_debug_mode = $value;
 		}
 		
 	}

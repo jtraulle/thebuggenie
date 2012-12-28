@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue estimates table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name='issue_estimates')
 	 */
 	class TBGIssueEstimates extends TBGB2DBTable
 	{
@@ -32,9 +38,9 @@
 		const ESTIMATED_HOURS = 'issue_estimates.estimated_hours';
 		const ESTIMATED_POINTS = 'issue_estimates.estimated_points';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::ISSUE_ID, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
 			parent::_addForeignKeyColumn(self::EDITED_BY, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addInteger(self::EDITED_AT, 10);
@@ -65,54 +71,61 @@
 		{
 			$points_retarr = array();
 			$hours_retarr = array();
-			$sd = $startdate;
-			while ($sd <= $enddate)
+			if ($startdate && $enddate)
 			{
-				$points_retarr[date('md', $sd)] = array();
-				$hours_retarr[date('md', $sd)] = array();
-				$sd += 86400;
+				$sd = $startdate;
+				while ($sd <= $enddate)
+				{
+					$points_retarr[mktime(0, 0, 1, date('m', $sd), date('d', $sd), date('Y', $sd))] = array();
+					$hours_retarr[mktime(0, 0, 1, date('m', $sd), date('d', $sd), date('Y', $sd))] = array();
+					$sd += 86400;
+				}
 			}
-			
-			//var_dump($issue_ids);die();
 			
 			if (count($issue_ids))
 			{
 				$crit = $this->getCriteria();
-				$crit->addWhere(self::EDITED_AT, $enddate, B2DBCriteria::DB_LESS_THAN_EQUAL);
-				$crit->addWhere(self::ISSUE_ID, $issue_ids, B2DBCriteria::DB_IN);
-				$crit->addOrderBy(self::EDITED_AT, B2DBCriteria::SORT_ASC);
+				if ($startdate && $enddate)
+					$crit->addWhere(self::EDITED_AT, $enddate, \b2db\Criteria::DB_LESS_THAN_EQUAL);
+
+				$crit->addWhere(self::ISSUE_ID, $issue_ids, \b2db\Criteria::DB_IN);
+				$crit->addOrderBy(self::EDITED_AT, \b2db\Criteria::SORT_ASC);
 
 				if ($res = $this->doSelect($crit))
 				{
 					while ($row = $res->getNextRow())
 					{
-						$date = date('md', ($row->get(self::EDITED_AT) >= $startdate) ? $row->get(self::EDITED_AT) : $startdate);
-						foreach ($points_retarr as $key => &$details)
+						if ($startdate && $enddate)
 						{
-							if ($key >= $date)
+							$sd = ($row->get(self::EDITED_AT) >= $startdate) ? $row->get(self::EDITED_AT) : $startdate;
+							$date = mktime(0, 0, 1, date('m', $sd), date('d', $sd), date('Y', $sd));
+							foreach ($points_retarr as $key => &$details)
 							{
+								if ($key < $date) continue;
 								$details[$row->get(self::ISSUE_ID)] = $row->get(self::ESTIMATED_POINTS);
 							}
-						}
-						foreach ($hours_retarr as $key => &$details)
-						{
-							if ($key >= $date)
+							foreach ($hours_retarr as $key => &$details)
 							{
+								if ($key < $date) continue;
 								$details[$row->get(self::ISSUE_ID)] = $row->get(self::ESTIMATED_HOURS);
 							}
+						}
+						else
+						{
+							$hours_retarr[$row->get(self::ISSUE_ID)] = $row->get(self::ESTIMATED_HOURS);
+							$points_retarr[$row->get(self::ISSUE_ID)] = $row->get(self::ESTIMATED_POINTS);
 						}
 					}
 				}
 			}
 
-			foreach ($points_retarr as $key => $vals)
+			if ($startdate && $enddate)
 			{
-				$points_retarr[$key] = (count($vals)) ? array_sum($vals) : 0;
-			}
+				foreach ($points_retarr as $key => $vals)
+					$points_retarr[$key] = (count($vals)) ? array_sum($vals) : 0;
 
-			foreach ($hours_retarr as $key => $vals)
-			{
-				$hours_retarr[$key] = (count($vals)) ? array_sum($vals) : 0;
+				foreach ($hours_retarr as $key => $vals)
+					$hours_retarr[$key] = (count($vals)) ? array_sum($vals) : 0;
 			}
 
 			return array('points' => $points_retarr, 'hours' => $hours_retarr);

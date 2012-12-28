@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Module permissions table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="modulepermissions")
 	 */
 	class TBGModulePermissionsTable extends TBGB2DBTable 
 	{
@@ -29,14 +35,14 @@
 		const TID = 'modulepermissions.tid';
 		const ALLOWED = 'modulepermissions.allowed';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::MODULE_NAME, 50);
 			parent::_addBoolean(self::ALLOWED);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::GID, TBGGroupsTable::getTable(), TBGGroupsTable::ID);
-			parent::_addForeignKeyColumn(self::TID, B2DB::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
+			parent::_addForeignKeyColumn(self::TID, Core::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 		}
 		

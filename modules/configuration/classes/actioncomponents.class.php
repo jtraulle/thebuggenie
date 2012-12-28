@@ -9,7 +9,7 @@
 			$geshi_languages = array();
 			foreach ($files as $file)
 			{
-				if (strstr($file, '.php') === false) continue;
+				if (mb_strstr($file, '.php') === false) continue;
 				$lang = str_replace('.php', '', $file);
 				$geshi_languages[$lang] = $lang;
 			}
@@ -19,16 +19,25 @@
 		public function componentUser()
 		{
 			$this->userstates = TBGUserstate::getAll();
+			$this->onlinestate = TBGSettings::getOnlineState();
+			$this->awaystate = TBGSettings::getAwayState();
+			$this->offlinestate = TBGSettings::getOfflineState();
 		}
 
 		public function componentAppearance()
 		{
 			$this->themes = TBGContext::getThemes();
+			$this->icons = TBGContext::getIconSets();
 		}
 
 		public function componentReglang()
 		{
 			$this->languages = TBGI18n::getLanguages();
+		}
+		
+		public function componentOffline()
+		{
+			
 		}
 
 		public function componentLeftmenu()
@@ -36,11 +45,12 @@
 			$i18n = TBGContext::getI18n();
 			$config_sections = array();
 
-			if (TBGContext::getUser()->getScope()->getID() == 1)
+			if (TBGContext::getScope()->getID() == 1)
 				$config_sections[TBGSettings::CONFIGURATION_SECTION_SCOPES] = array('route' => 'configure_scopes', 'description' => $i18n->__('Scopes'), 'icon' => 'scopes', 'module' => 'core');
 
 			$config_sections[TBGSettings::CONFIGURATION_SECTION_SETTINGS] = array('route' => 'configure_settings', 'description' => $i18n->__('Settings'), 'icon' => 'general', 'module' => 'core');
 			$config_sections[TBGSettings::CONFIGURATION_SECTION_PERMISSIONS] = array('route' => 'configure_permissions', 'description' => $i18n->__('Permissions'), 'icon' => 'permissions', 'module' => 'core');
+			$config_sections[TBGSettings::CONFIGURATION_SECTION_ROLES] = array('route' => 'configure_roles', 'description' => $i18n->__('Roles'), 'icon' => 'roles', 'module' => 'core');
 			$config_sections[TBGSettings::CONFIGURATION_SECTION_AUTHENTICATION] = array('route' => 'configure_authentication', 'description' => $i18n->__('Authentication'), 'icon' => 'authentication', 'module' => 'core');
 
 			if (TBGContext::getScope()->isUploadsEnabled())
@@ -57,7 +67,7 @@
 			{
 				if ($module->hasConfigSettings() && $module->isEnabled())
 				{
-					$config_sections[TBGSettings::CONFIGURATION_SECTION_MODULES][] = array('route' => array('configure_module', array('config_module' => $module->getName())), 'description' => $module->getConfigTitle(), 'icon' => $module->getName(), 'module' => $module->getName());
+					$config_sections[TBGSettings::CONFIGURATION_SECTION_MODULES][] = array('route' => array('configure_module', array('config_module' => $module->getName())), 'description' => TBGContext::geti18n()->__($module->getConfigTitle()), 'icon' => $module->getName(), 'module' => $module->getName());
 				}
 			}
 			$breadcrumblinks = array();
@@ -115,6 +125,14 @@
 				}
 				$this->customtype = $customtype;
 			}
+		}
+
+		public function componentIssueFieldPermissions()
+		{
+		}
+
+		public function componentPermissionsPopup()
+		{
 		}
 
 		public function componentIssueTypeSchemeOptions()
@@ -190,34 +208,6 @@
 			$this->user_id = (isset($this->user_id)) ? $this->user_id : 0;
 		}
 
-		public function componentProjectConfig_Container()
-		{
-			$this->access_level = (TBGContext::getUser()->canSaveConfiguration(TBGSettings::CONFIGURATION_SECTION_PROJECTS)) ? TBGSettings::ACCESS_FULL : TBGSettings::ACCESS_READ;
-			$this->section = isset($this->section) ? $this->section : 'info';
-		}
-
-		public function componentProjectConfig()
-		{
-			$this->access_level = (TBGContext::getUser()->canSaveConfiguration(TBGSettings::CONFIGURATION_SECTION_PROJECTS)) ? TBGSettings::ACCESS_FULL : TBGSettings::ACCESS_READ;
-			$this->statustypes = TBGStatus::getAll();
-			$this->selected_tab = isset($this->section) ? $this->section : 'info';
-		}
-
-		public function componentProjectSettings()
-		{
-			$this->statustypes = TBGStatus::getAll();
-		}
-		
-		public function componentProjectMilestones()
-		{
-			$this->milestones = $this->project->getAllMilestones();
-		}
-
-		public function componentProjectEdition()
-		{
-			$this->access_level = (TBGContext::getUser()->canSaveConfiguration(TBGSettings::CONFIGURATION_SECTION_PROJECTS)) ? TBGSettings::ACCESS_FULL : TBGSettings::ACCESS_READ;
-		}
-		
 		public function componentWorkflowtransitionaction()
 		{
 			$available_assignees = array();
@@ -235,4 +225,12 @@
 			$this->available_assignees = $available_assignees;
 		}
 
+		public function componentUserscopes()
+		{
+			$this->scopes = TBGScope::getAll();
+		}
+		
+		public function componentSiteicons()
+		{
+		}
 	}

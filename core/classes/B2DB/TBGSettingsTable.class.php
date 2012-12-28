@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Settings table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="settings")
 	 */
 	class TBGSettingsTable extends TBGB2DBTable 
 	{
@@ -35,29 +41,24 @@
 		 */
 		public static function getTable()
 		{
-			return B2DB::getTable('TBGSettingsTable');
+			return Core::getTable('TBGSettingsTable');
+		}
+
+		public function _setupIndexes()
+		{
+			$this->_addIndex('scope_uid', array(self::SCOPE, self::UID));
 		}
 		
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::NAME, 45);
 			parent::_addVarchar(self::MODULE, 45);
 			parent::_addVarchar(self::VALUE, 200);
 			parent::_addInteger(self::UID, 10);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable());
 		}
 		
-		public function getDefaultScope()
-		{
-			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, 0);
-			$crit->addWhere(self::NAME, 'defaultscope');
-			$row = $this->doSelectOne($crit);
-			return $row;
-		}
-
 		public function getSettingsForScope($scope, $uid = 0)
 		{
 			$crit = $this->getCriteria();
@@ -76,15 +77,15 @@
 			$crit->addWhere(self::SCOPE, $scope);
 			$res = $this->doSelectOne($crit);
 
-			if ($res instanceof B2DBRow)
+			if ($res instanceof \b2db\Row)
 			{
 				$theID = $res->get(self::ID);
-				$crit2 = new B2DBCriteria();
+				$crit2 = new Criteria();
 				$crit2->addWhere(self::NAME, $name);
 				$crit2->addWhere(self::MODULE, $module);
 				$crit2->addWhere(self::UID, $uid);
 				$crit2->addWhere(self::SCOPE, $scope);
-				$crit2->addWhere(self::ID, $theID, B2DBCriteria::DB_NOT_EQUALS);
+				$crit2->addWhere(self::ID, $theID, Criteria::DB_NOT_EQUALS);
 				$res2 = $this->doDelete($crit2);
 				
 				$crit = $this->getCriteria();
@@ -138,7 +139,11 @@
 			$settings[TBGSettings::SETTING_SYNTAX_HIGHLIGHT_DEFAULT_LANGUAGE] = 'html4strict';
 			$settings[TBGSettings::SETTING_SYNTAX_HIGHLIGHT_DEFAULT_NUMBERING] = '3';
 			$settings[TBGSettings::SETTING_SYNTAX_HIGHLIGHT_DEFAULT_INTERVAL] = '10';
-			$settings[TBGSettings::SETTING_SALT] = sha1(time().mt_rand(1000, 10000));
+			$settings[TBGSettings::SETTING_ICONSET] = 'oxygen';
+			if ($scope->isDefault())
+			{
+				$settings[TBGSettings::SETTING_SALT] = sha1(time().mt_rand(1000, 10000));
+			}
 
 			$scope_id = $scope->getID();
 			foreach ($settings as $settings_name => $settings_val)

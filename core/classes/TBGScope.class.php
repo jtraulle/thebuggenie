@@ -15,57 +15,122 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGScopesTable")
 	 */
 	class TBGScope extends TBGIdentifiableClass
 	{
 		
-		static protected $_b2dbtablename = 'TBGScopesTable';
-		
-		static protected $_scopes = null;
+		protected static $_scopes = null;
 
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
+		/**
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
 		protected $_description = '';
 		
+		/**
+		 * @var boolean
+		 * @Column(type="boolean")
+		 */
 		protected $_enabled = false;
 		
+		/**
+		 * @var string
+		 */
 		protected $_shortname = '';
 		
 		protected $_administrator = null;
 		
 		protected $_hostnames = null;
 
+		protected $_is_secure = false;
+
+		/**
+		 * @var boolean
+		 * @Column(type="boolean")
+		 */
 		protected $_uploads_enabled = true;
 
+		/**
+		 * @var integer
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_max_upload_limit = 0;
 
+		/**
+		 * @var boolean
+		 * @Column(type="boolean")
+		 */
 		protected $_custom_workflows_enabled = true;
 
+		/**
+		 * @var integer
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_max_workflows = 0;
 
+		/**
+		 * @var integer
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_max_users = 0;
 
+		/**
+		 * @var integer
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_max_projects = 0;
 
+		/**
+		 * @var integer
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_max_teams = 0;
 
+		/**
+		 * Return all available scopes
+		 * 
+		 * @return array|TBGScope
+		 */
 		static function getAll()
 		{
 			if (self::$_scopes === null)
 			{
-				$res = TBGScopesTable::getTable()->doSelectAll();
-				$scopes = array();
-
-				while ($row = $res->getNextRow())
-				{
-					$scope = TBGContext::factory()->TBGScope($row->get(TBGScopesTable::ID), $row);
-					$scopes[$scope->getID()] = $scope;
-				}
-
-				self::$_scopes = $scopes;
+				self::$_scopes = TBGScopesTable::getTable()->selectAll();
 			}
 
 			return self::$_scopes;
 		}
 		
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 		public function isEnabled()
 		{
 			return $this->_enabled;
@@ -73,7 +138,7 @@
 
 		public function isDefault()
 		{
-			return (bool) ($this->_id == 1);
+			return in_array('*', $this->getHostnames());
 		}
 		
 		public function setEnabled($enabled = true)
@@ -140,9 +205,11 @@
 				'TBGIssueAffectsBuildTable', 'TBGIssueAffectsComponentTable', 'TBGIssueFilesTable',
 				'TBGIssueRelationsTable', 'TBGIssuetypeSchemeLinkTable', 'TBGIssuetypeSchemesTable',
 				'TBGIssueTypesTable', 'TBGListTypesTable', 'TBGIssuesTable', 'TBGCommentsTable',
-				'TBGComponentAssigneesTable', 'TBGProjectAssigneesTable', 'TBGEditionAssigneesTable',
+				'TBGComponentAssignedTeamsTable', 'TBGComponentAssignedUsersTable', 
+				'TBGProjectAssignedTeamsTable', 'TBGProjectAssignedUsersTable',
+				'TBGEditionAssignedTeamsTable', 'TBGEditionAssignedUsersTable',
 				'TBGComponentsTable', 'TBGEditionsTable', 'TBGBuildsTable', 'TBGMilestonesTable',
-				'TBGIssuesTable', 'TBGProjectsTable'
+				'TBGIssuesTable', 'TBGProjectsTable', 'TBGUserScopesTable'
 			);
 			foreach($tables as $table)
 			{
@@ -156,63 +223,87 @@
 			// Load fixtures for this scope if it's a new scope
 			if ($is_new)
 			{
-				if ($this->getID() != 1)
+				if (!$this->isDefault())
 				{
 					$prev_scope = TBGContext::getScope();
 					TBGContext::setScope($this);
 				}
 				$this->loadFixtures();
-				if ($this->getID() != 1)
+				if (!$this->isDefault())
 				{
 					TBGModule::installModule('publish', $this);
 					TBGContext::setScope($prev_scope);
+					TBGContext::clearPermissionsCache();
 				}
 			}
 		}
 		
-		public function _construct(B2DBRow $row, $foreign_key = null)
+		public function _construct(\b2db\Row $row, $foreign_key = null)
 		{
-			if (TBGContext::isCLI()) return;
-			$hostprefix = (!array_key_exists('HTTPS', $_SERVER) || $_SERVER['HTTPS'] == '' || $_SERVER['HTTPS'] == 'off') ? 'http' : 'https';
-			$this->_hostname = "{$hostprefix}://{$_SERVER['SERVER_NAME']}";
-			$port = $_SERVER['SERVER_PORT'];
-			if ($port != 80)
+			if (TBGContext::isCLI())
 			{
-				$this->_hostname .= ":{$port}";
+				$this->_hostname = php_uname('n');
+			}
+			else
+			{
+				$hostprefix = (!array_key_exists('HTTPS', $_SERVER) || $_SERVER['HTTPS'] == '' || $_SERVER['HTTPS'] == 'off') ? 'http' : 'https';
+				$this->_is_secure = (bool) ($hostprefix == 'https');
+				$this->_hostname = "{$hostprefix}://{$_SERVER['SERVER_NAME']}";
+				$port = $_SERVER['SERVER_PORT'];
+				if ($port != 80)
+				{
+					$this->_hostname .= ":{$port}";
+				}
 			}
 		}
 
-		public function getCurrentHostname()
+		public function isSecure()
 		{
-			return $this->_hostname;
+			return $this->_is_secure;
 		}
 
+		public function getCurrentHostname($clean = false)
+		{
+                        if ($clean)
+                        {
+                                // a scheme is needed before php 5.4.7
+                                // thus, let's add the prefix http://
+                                if (!stristr($this->_hostname,'http')) {
+                                        $url = parse_url('http://'.$this->_hostname);
+                                } else {
+                                        $url = parse_url($this->_hostname);
+                                }
+                                return $url['host'];
+                        }
+                        return $this->_hostname;
+		}
+		
 		public function loadFixtures()
 		{
 			// Load initial settings
 			TBGSettingsTable::getTable()->loadFixtures($this);
 			TBGSettings::loadSettings();
-			
+
 			// Load group, users and permissions fixtures
 			TBGGroup::loadFixtures($this);
 
 			// Load initial teams
 			TBGTeam::loadFixtures($this);
-			
+
 			// Set up user states, like "available", "away", etc
 			TBGUserstate::loadFixtures($this);
-			
+
 			// Set up data types
 			list($b_id, $f_id, $e_id, $t_id, $u_id, $i_id) = TBGIssuetype::loadFixtures($this);
 			$scheme = TBGIssuetypeScheme::loadFixtures($this);
 			TBGIssueFieldsTable::getTable()->loadFixtures($this, $scheme, $b_id, $f_id, $e_id, $t_id, $u_id, $i_id);
 			TBGDatatype::loadFixtures($this);
-			
+
 			// Set up workflows
 			TBGWorkflow::loadFixtures($this);
-			TBGWorkflowSchemesTable::getTable()->loadFixtures($this);
+			TBGWorkflowScheme::loadFixtures($this);
 			TBGWorkflowIssuetypeTable::getTable()->loadFixtures($this);
-			
+
 			// Set up left menu links
 			TBGLinksTable::getTable()->loadFixtures($this);
 		}
@@ -307,7 +398,7 @@
 
 		public function hasTeamsAvailable()
 		{
-			return ($this->getMaxTeams()) ? (TBGTeam::getTeamsCount() < $this->getMaxTeams()) : true;
+			return ($this->getMaxTeams()) ? (TBGTeam::countAll() < $this->getMaxTeams()) : true;
 		}
 		
 	}

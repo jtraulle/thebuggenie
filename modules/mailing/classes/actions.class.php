@@ -14,7 +14,7 @@
 
 			try
 			{
-				$username = str_replace('%2E', '.', $request->getParameter('forgot_password_username'));
+				$username = str_replace('%2E', '.', $request['forgot_password_username']);
 				if (!empty($username))
 				{
 					if (($user = TBGUser::getByUsername($username)) instanceof TBGUser)
@@ -48,23 +48,11 @@
 			}
 			catch (Exception $e)
 			{
-				return $this->renderJSON(array('failed' => true, 'error' => $e->getMessage()));
+				$this->getResponse()->setHttpStatus(400);
+				return $this->renderJSON(array('error' => $e->getMessage()));
 			}
 		}
 
-		/**
-		 * Reset user password
-		 * 
-		 * @param TBGRequest $request
-		 */
-		public function runResetPassword(TBGRequest $request)
-		{
-			$this->user = TBGUser::getByUsername(str_replace('%2E', '.', $request->getParameter('user')));
-			$this->username = $request->getParameter('user');
-			$this->id = $request->getParameter('reset_hash');
-			$this->forward403unless($this->user instanceof TBGUser && $this->id == $this->user->getHashPassword(), 'Invalid password reset request');
-		}
-		
 		/**
 		 * Send a test email
 		 *
@@ -72,7 +60,7 @@
 		 */
 		public function runTestEmail(TBGRequest $request)
 		{
-			if ($email_to = $request->getParameter('test_email_to'))
+			if ($email_to = $request['test_email_to'])
 			{
 				try
 				{
@@ -97,6 +85,119 @@
 				TBGContext::setMessage('module_error', TBGContext::getI18n()->__('Please specify an email address'));
 			}
 			$this->forward(TBGContext::getRouting()->generate('configure_module', array('config_module' => 'mailing')));
+		}
+		
+		public function runSaveIncomingAccount(TBGRequest $request)
+		{
+			$project = null;
+			if ($project_key = $request['project_key'])
+			{
+				try
+				{
+					$project = TBGProject::getByKey($project_key);
+				}
+				catch (Exception $e) {}
+			}
+			if ($project instanceof TBGProject)
+			{
+				try
+				{
+					$account_id = $request['account_id'];
+					$account = ($account_id) ? new TBGIncomingEmailAccount($account_id) : new TBGIncomingEmailAccount();
+					$account->setIssuetype((integer) $request['issuetype']);
+					$account->setProject($project);
+					$account->setPort((integer) $request['port']);
+					$account->setName($request['name']);
+					$account->setFoldername($request['folder']);
+					$account->setKeepEmails($request['keepemail']);
+					$account->setServer($request['servername']);
+					$account->setUsername($request['username']);
+					$account->setPassword($request['password']);
+					$account->setSSL((boolean) $request['ssl']);
+					$account->setServerType((integer) $request['account_type']);
+					$account->save();
+
+					if (!$account_id)
+					{
+						return $this->renderTemplate('mailing/incomingemailaccount', array('project' => $project, 'account' => $account));
+					}
+					else
+					{
+						return $this->renderJSON(array('name' => $account->getName()));
+					}
+				}
+				catch (Exception $e)
+				{
+					$this->getResponse()->setHttpStatus(400);
+					return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid mailing account')));
+				}
+			}
+			else
+			{
+				$this->getResponse()->setHttpStatus(400);
+				return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid project')));
+			}
+		}
+		
+		public function runCheckIncomingAccount(TBGRequest $request)
+		{
+			TBGContext::loadLibrary('common');
+			if ($account_id = $request['account_id'])
+			{
+				try
+				{
+					$account = new TBGIncomingEmailAccount($account_id);
+					try
+					{
+                        if (!function_exists('imap_open'))
+                        {
+                            throw new Exception($this->getI18n()->__('The php imap extension is not installed'));
+                        }
+						TBGContext::getModule('mailing')->processIncomingEmailAccount($account);
+					}
+					catch (Exception $e)
+					{
+						$this->getResponse()->setHttpStatus(400);
+						return $this->renderJSON(array('error' => $e->getMessage()));
+					}
+
+					return $this->renderJSON(array('account_id' => $account->getID(), 'time' => tbg_formatTime($account->getTimeLastFetched(), 6), 'count' => $account->getNumberOfEmailsLastFetched()));
+				}
+				catch (Exception $e)
+				{
+					$this->getResponse()->setHttpStatus(400);
+					return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid mailing account')));
+				}
+			}
+			else
+			{
+				$this->getResponse()->setHttpStatus(400);
+				return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid mailing account')));
+			}
+		}
+		
+		public function runDeleteIncomingAccount(TBGRequest $request)
+		{
+			if ($account_id = $request['account_id'])
+			{
+				try
+				{
+					$account = new TBGIncomingEmailAccount($account_id);
+					$account->delete();
+
+					return $this->renderJSON(array('message' => $this->getI18n()->__('Incoming email account deleted')));
+				}
+				catch (Exception $e)
+				{
+					$this->getResponse()->setHttpStatus(400);
+					return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid mailing account')));
+				}
+			}
+			else
+			{
+				$this->getResponse()->setHttpStatus(400);
+				return $this->renderJSON(array('error' => $this->getI18n()->__('This is not a valid mailing account')));
+			}
 		}
 
 	}

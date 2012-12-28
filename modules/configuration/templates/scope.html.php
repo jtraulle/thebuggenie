@@ -2,7 +2,7 @@
 <table style="table-layout: fixed; width: 100%" cellpadding=0 cellspacing=0>
 	<tr>
 		<?php include_component('leftmenu', array('selected_section' => TBGSettings::CONFIGURATION_SECTION_SCOPES)); ?>
-		<td valign="top">
+		<td valign="top" style="padding-left: 15px;">
 			<form method="post" accept-charset="<?php echo TBGSettings::getCharset(); ?>">
 				<div style="width: 750px;" class="config_header"><?php echo __('Configure scope "%scope_name%"', array('%scope_name%' => $scope->getName())); ?></div>
 				<div style="width: 750px;" id="config_scopes">
@@ -30,7 +30,7 @@
 									<td><label><?php echo __('Scope hostname'); ?></label></td>
 									<td>
 										<?php foreach ($scope->getHostnames() as $hostname): ?>
-											<?php /* <a href="javascript:void(0);" onclick="failedMessage('not implemented yet')" class="rounded_box action_button" style="float: left; margin-left: 0; margin-right: 5px;"><?php echo image_tag('icon_delete.png', array('title' => __('Delete this hostname'))); ?></a> */ ?>
+											<?php /* <a href="javascript:void(0);" onclick="TBG.Main.Helpers.Message.error('not implemented yet')" class="rounded_box action_button" style="float: left; margin-left: 0; margin-right: 5px;"><?php echo image_tag('icon_delete.png', array('title' => __('Delete this hostname'))); ?></a> */ ?>
 											<?php echo $hostname; ?>
 											<br style="clear: both;">
 										<?php endforeach; ?>

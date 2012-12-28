@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Scopes table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="scopehostnames")
 	 */
 	class TBGScopeHostnamesTable extends TBGB2DBTable
 	{
@@ -25,9 +31,9 @@
 		const SCOPE_ID = 'scopehostnames.scope_id';
 		const HOSTNAME = 'scopehostnames.hostname';
 		
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::HOSTNAME, 200, '');
 			parent::_addForeignKeyColumn(self::SCOPE_ID, TBGScopesTable::getTable(), TBGScopesTable::ID);
 		}
@@ -74,6 +80,16 @@
 			}
 
 			return $hostnames;
+		}
+
+		public function getScopeIDForHostname($hostname)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::HOSTNAME, $hostname);
+
+			$row = $this->doSelectOne($crit);
+
+			return ($row instanceof \b2db\Row) ? (int) $row->get(self::SCOPE_ID) : null;
 		}
 
 	}

@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Articles <-> Files table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="articlefiles")
 	 */
 	class TBGArticleFilesTable extends TBGB2DBTable
 	{
@@ -28,9 +34,9 @@
 		const FILE_ID = 'articlefiles.file_id';
 		const ARTICLE_ID = 'articlefiles.article_id';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 			parent::_addForeignKeyColumn(self::ARTICLE_ID, TBGArticlesTable::getTable(), TBGArticlesTable::ID);
@@ -95,4 +101,29 @@
 			return $res;
 		}
 		
+		public function deleteFilesByArticleID($article_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::ARTICLE_ID, $article_id);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			$this->doDelete($crit);
+		}
+
+		public function getArticlesByFileID($file_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::FILE_ID, $file_id);
+
+			$article_ids = array();
+			if ($res = $this->doSelect($crit))
+			{
+				while ($row = $res->getNextRow())
+				{
+					$a_id = $row->get(self::ARTICLE_ID);
+					$article_ids[$a_id] = $a_id;
+				}
+			}
+			return $article_ids;
+		}
+
 	}

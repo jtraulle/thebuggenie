@@ -60,13 +60,13 @@
 				try
 				{
 					// Check if the class is cacheable as well
-					$cacheable = in_array($classname, array('TBGProject'));
+					$cacheable = false; // in_array($classname, array('TBGProject', 'TBGStatus', 'TBGPriority', 'TBGCategory', 'TBGUserstate'));
 					$item = null;
 
 					// If the class is cacheable, check if it exists in the cache
 					if ($cacheable)
 					{
-						if ($item = TBGCache::get("TBGFactory_cache{$factory_array_name}_{$id}"))
+						if ($item = TBGCache::get(TBGCache::KEY_TBG_FACTORY."{$factory_array_name}_{$id}"))
 						{
 							TBGLogging::log("Using cached $classname with id $id");
 						}
@@ -81,7 +81,7 @@
 						// Add the item to the cache if it's cacheable
 						if ($cacheable)
 						{
-							TBGCache::add("TBGFactory_cache{$factory_array_name}_{$id}", $item);
+							TBGCache::add(TBGCache::KEY_TBG_FACTORY."{$factory_array_name}_{$id}", $item);
 						}
 					}
 

@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue fields table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issuefields")
 	 */
 	class TBGIssueFieldsTable extends TBGB2DBTable 
 	{
@@ -30,9 +36,9 @@
 		const REPORTABLE = 'issuefields.is_reportable';
 		const REQUIRED = 'issuefields.required';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::FIELD_KEY, 100);
 			parent::_addBoolean(self::REQUIRED);
 			parent::_addBoolean(self::REPORTABLE);
@@ -42,6 +48,11 @@
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 		}
 		
+		protected function _setupIndexes()
+		{
+			$this->_addIndex('scope_issuetypescheme_issuetype', array(self::SCOPE, self::ISSUETYPE_SCHEME_ID, self::ISSUETYPE_ID));
+		}
+
 		public function getSchemeVisibleFieldsArrayByIssuetypeID($scheme_id, $issuetype_id)
 		{
 			$res = $this->getBySchemeIDandIssuetypeID($scheme_id, $issuetype_id);
@@ -50,7 +61,13 @@
 			{
 				while ($row = $res->getNextRow())
 				{
-					$retval[$row->get(TBGIssueFieldsTable::FIELD_KEY)] = array('required' => (bool) $row->get(TBGIssueFieldsTable::REQUIRED), 'reportable' => (bool) $row->get(TBGIssueFieldsTable::REPORTABLE), 'additional' => (bool) $row->get(TBGIssueFieldsTable::ADDITIONAL));
+					$retval[$row->get(TBGIssueFieldsTable::FIELD_KEY)] = array(
+						'label' => $row->get(TBGCustomFieldsTable::FIELD_DESCRIPTION),
+						'required' => (bool)$row->get(TBGIssueFieldsTable::REQUIRED),
+						'reportable' => (bool)$row->get(TBGIssueFieldsTable::REPORTABLE),
+						'additional' => (bool)$row->get(TBGIssueFieldsTable::ADDITIONAL),
+						'type' => $row->get(TBGCustomFieldsTable::FIELD_TYPE) ? $row->get(TBGCustomFieldsTable::FIELD_TYPE) : 'builtin',
+					);
 				}
 			}
 			return $retval;
@@ -113,6 +130,7 @@
 		public function getBySchemeIDandIssuetypeID($scheme_id, $issuetype_id)
 		{
 			$crit = $this->getCriteria();
+			$crit->addJoin(TBGCustomFieldsTable::getTable(), TBGCustomFieldsTable::FIELD_KEY, self::FIELD_KEY);
 			$crit->addWhere(self::ISSUETYPE_SCHEME_ID, $scheme_id);
 			$crit->addWhere(self::ISSUETYPE_ID, $issuetype_id);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
@@ -124,6 +142,14 @@
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::ISSUETYPE_SCHEME_ID, $scheme_id);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			$res = $this->doDelete($crit);
+		}
+
+		public function deleteByIssueFieldKey($key)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::FIELD_KEY, $key);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$res = $this->doDelete($crit);
 		}
@@ -239,7 +265,7 @@
 			$crit = $this->getCriteria();
 			$crit->addInsert(self::ISSUETYPE_SCHEME_ID, $scheme);
 			$crit->addInsert(self::ISSUETYPE_ID, $issue_type_bug_report_id);
-			$crit->addInsert(self::FIELD_KEY, 'percentcomplete');
+			$crit->addInsert(self::FIELD_KEY, 'percent_complete');
 			$crit->addInsert(self::REPORTABLE, true);
 			$crit->addInsert(self::ADDITIONAL, true);
 			$crit->addInsert(self::SCOPE, $scope);

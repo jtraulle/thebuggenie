@@ -34,29 +34,18 @@
 			<?php else: ?>
 				<div class="article">
 					<?php include_template('publish/header', array('article_name' => $article_name, 'show_actions' => true, 'mode' => 'view')); ?>
-					<?php include_template('publish/placeholder', array('article_name' => $article_name)); ?>
+					<?php if (TBGContext::isProjectContext() && TBGContext::getCurrentProject()->isArchived()): ?>
+						<?php include_template('publish/placeholder', array('article_name' => $article_name, 'nocreate' => true)); ?>
+					<?php else: ?>
+						<?php include_template('publish/placeholder', array('article_name' => $article_name)); ?>
+					<?php endif; ?>
 				</div>
 			<?php endif; ?>
-			<?php if (TBGContext::getModule('publish')->canUserEditArticle($article_name) || TBGContext::getModule('publish')->canUserDeleteArticle($article_name)): ?>
+			<?php if (!$article instanceof TBGWikiArticle && ((TBGContext::isProjectContext() && !TBGContext::getCurrentProject()->isArchived()) || (!TBGContext::isProjectContext() && TBGContext::getModule('publish')->canUserEditArticle($article_name)))): ?>
 				<div class="publish_article_actions">
-					<div class="sub_header"><?php echo __('Actions available'); ?></div>
-					<?php if (TBGContext::getModule('publish')->canUserEditArticle($article_name)): ?>
-						<form action="<?php echo make_url('publish_article_edit', array('article_name' => $article_name)); ?>" method="get" style="float: left; margin-right: 10px;">
-							<input type="submit" value="<?php echo ($article instanceof TBGWikiArticle) ? __('Edit this article') : __('Create this article'); ?>">
-						</form>
-					<?php endif; ?>
-					<?php if (TBGContext::getModule('publish')->canUserDeleteArticle($article_name)): ?>
-						<?php if ($article instanceof TBGWikiArticle): ?>
-							<button onclick="$('delete_article_confirm').toggle();"><?php echo __('Delete this article'); ?></button>
-							<div class="rounded_box yellow" style="margin: 10px 0 5px; width: 720px; display: none; padding: 3px 10px 3px 10px; font-size: 14px;" id="delete_article_confirm">
-								<h4><?php echo __('Really delete this article?'); ?></h4>
-								<span class="question_header"><?php echo __('Deleting this article will remove it from the system.'); ?></span><br>
-								<div style="text-align: right;">
-									<?php echo link_tag(make_url('publish_article_delete', array('article_name' => $article_name)), __('Yes')); ?> :: <a href="javascript:void(0)" class="xboxlink" onclick="$('delete_article_confirm').hide();"><?php echo __('No'); ?></a>
-								</div>
-							</div>
-						<?php endif; ?>
-					<?php endif; ?>
+					<form action="<?php echo make_url('publish_article_edit', array('article_name' => $article_name)); ?>" method="get" style="float: left; margin-right: 10px;">
+						<input class="button button-green" type="submit" value="<?php echo __('Create this article'); ?>">
+					</form>
 				</div>
 			<?php endif; ?>
 			<?php if ($article instanceof TBGWikiArticle): ?>

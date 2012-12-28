@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Visible milestones table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="visible_milestones")
 	 */
 	class TBGVisibleMilestonesTable extends TBGB2DBTable 
 	{
@@ -26,9 +32,9 @@
 		const PROJECT_ID = 'visible_milestones.project_id';
 		const MILESTONE_ID = 'visible_milestones.milestone_id';
 		
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::MILESTONE_ID, TBGMilestonesTable::getTable(), TBGMilestonesTable::ID);
 			parent::_addForeignKeyColumn(self::PROJECT_ID, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
@@ -39,7 +45,7 @@
 			$milestones = array();
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::PROJECT_ID, $project_id);
-			$crit->addOrderBy(TBGMilestonesTable::SCHEDULED, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(TBGMilestonesTable::SCHEDULED, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
 		}

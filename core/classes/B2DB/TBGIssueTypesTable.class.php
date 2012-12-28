@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue types table
 	 *
@@ -15,39 +19,77 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issuetypes")
+	 * @Entity(class="TBGIssuetype")
 	 */
 	class TBGIssueTypesTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 1;
+		const B2DB_TABLE_VERSION = 2;
 		const B2DBNAME = 'issuetypes';
 		const ID = 'issuetypes.id';
 		const SCOPE = 'issuetypes.scope';
 		const NAME = 'issuetypes.name';
 		const DESCRIPTION = 'issuetypes.description';
-		const ICON = 'issuetypes.itemdata';
+		const ICON = 'issuetypes.icon';
 		const TASK = 'issuetypes.task';
-		
-		public function __construct()
+
+		public function _migrateData(\b2db\Table $old_table)
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addVarchar(self::NAME, 50);
-			parent::_addVarchar(self::ICON, 30, 'bug_report');
-			parent::_addText(self::DESCRIPTION, false);
-			parent::_addBoolean(self::TASK);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			$sqls = array();
+			$tn = $this->_getTableNameSQL();
+			$qc = $this->getQC();
+			switch ($old_table->getVersion())
+			{
+				case 1:
+					$sqls[] = "UPDATE {$tn} SET icon = itemdata";
+					$sqls[] = "UPDATE {$tn} SET {$qc}key{$qc} = NULL";
+					break;
+			}
+			foreach ($sqls as $sql)
+			{
+				$statement = \b2db\Statement::getPreparedStatement($sql);
+				$res = $statement->performQuery('update');
+			}
+
+			switch ($old_table->getVersion())
+			{
+				case 1:
+					foreach (self::getTable()->getAll() as $issuetype)
+					{
+						// Trigger issuetype key regeneration
+						$issuetype->setKey(null);
+						$issuetype->getKey();
+						$issuetype->save();
+					}
+					break;
+			}
 		}
 
-		public function createNew($name, $icon = 'bug_report')
+		public function getAll()
 		{
 			$crit = $this->getCriteria();
-			$crit->addInsert(self::NAME, $name);
-			$crit->addInsert(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addInsert(self::ICON, $icon);
-			$crit->addInsert(self::DESCRIPTION, $name);
-			$res = $this->doInsert($crit);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			return $this->select($crit);
+		}
 
-			return $res;
+		public function getAllIDsByScopeID($scope_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::SCOPE, $scope_id);
+			$crit->addSelectionColumn(self::ID, 'id');
+			$res = $this->doSelect($crit);
+
+			$ids = array();
+			if ($res) {
+				while ($row = $res->getNextRow()) {
+					$id = $row->get('id');
+					$ids[$id] = $id;
+				}
+			}
+
+			return $ids;
 		}
 
 		public function getBugReportTypeIDs()

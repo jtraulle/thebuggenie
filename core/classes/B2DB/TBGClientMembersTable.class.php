@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Client members table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="clientmembers")
 	 */
 	class TBGClientMembersTable extends TBGB2DBTable 
 	{
@@ -26,23 +32,12 @@
 		const UID = 'clientmembers.uid';
 		const CID = 'clientmembers.cid';
 		
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGClientMembersTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGClientMembersTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
-			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
-			parent::_addForeignKeyColumn(self::CID, B2DB::getTable('TBGClientsTable'), TBGClientsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
+			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable());
+			parent::_addForeignKeyColumn(self::CID, TBGClientsTable::getTable());
+			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable());
 		}
 
 		public function getUIDsForClientID($client_id)

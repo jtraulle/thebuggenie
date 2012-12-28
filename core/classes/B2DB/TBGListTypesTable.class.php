@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * List types table
 	 *
@@ -15,11 +19,16 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="listtypes")
+	 * @Entity(class="TBGDatatypeBase")
+	 * @Entities(identifier="itemtype")
+	 * @SubClasses(status="TBGStatus", category="TBGCategory", priority="TBGPriority", role="TBGRole", resolution="TBGResolution", reproducability="TBGReproducability", severity="TBGSeverity")
 	 */
 	class TBGListTypesTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 1;
+		const B2DB_TABLE_VERSION = 2;
 		const B2DBNAME = 'listtypes';
 		const ID = 'listtypes.id';
 		const SCOPE = 'listtypes.scope';
@@ -32,27 +41,6 @@
 		
 		protected static $_item_cache = null;
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGListTypesTable
-		 */
-		public static function getTable()
-		{
-			return B2DB::getTable('TBGListTypesTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addVarchar(self::NAME, 100);
-			parent::_addVarchar(self::ITEMTYPE, 25);
-			parent::_addText(self::ITEMDATA, false);
-			parent::_addInteger(self::APPLIES_TO, 10);
-			parent::_addInteger(self::ORDER, 3);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
-		
 		public function clearListTypeCache()
 		{
 			self::$_item_cache = null;
@@ -65,13 +53,11 @@
 				self::$_item_cache = array();
 				$crit = $this->getCriteria();
 				$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-				$crit->addOrderBy(self::ORDER, B2DBCriteria::SORT_ASC);
-				if ($res = $this->doSelect($crit, false))
+				$crit->addOrderBy(self::ORDER, Criteria::SORT_ASC);
+				$items = $this->select($crit);
+				foreach ($items as $item)
 				{
-					while ($row = $res->getNextRow())
-					{
-						self::$_item_cache[$row->get(self::ITEMTYPE)][$row->get(self::ID)] = $row;
-					}
+					self::$_item_cache[$item->getItemtype()][$item->getID()] = $item;
 				}
 			}
 		}
@@ -79,49 +65,19 @@
 		public function getAllByItemType($itemtype)
 		{
 			$this->_populateItemCache();
-			if (array_key_exists($itemtype, self::$_item_cache))
-			{
-				return self::$_item_cache[$itemtype];
-			}
-			else
-			{
-				return null;
-			}
+			return (array_key_exists($itemtype, self::$_item_cache)) ? self::$_item_cache[$itemtype] : array();
 		}
 
-		public function createNew($name, $itemtype, $itemdata = null, $scope = null)
+		public function getAllByItemTypeAndItemdata($itemtype, $itemdata)
 		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
-
-			$crit = $this->getCriteria();
-			$crit->addWhere(self::ITEMTYPE, $itemtype);
-			$crit->addSelectionColumn(self::ORDER, 'sortorder', B2DBCriteria::DB_MAX, '', '+1');
-			$row = $this->doSelectOne($crit, 'none');
-			$sort_order = (int) $row->get('sortorder');
-			$sort_order = ($sort_order > 0) ? $sort_order : 1;
-
-			$crit = $this->getCriteria();
-			$crit->addInsert(self::NAME, $name);
-			$crit->addInsert(self::ITEMTYPE, $itemtype);
-			$crit->addInsert(self::ORDER, $sort_order);
-			if ($itemdata !== null)
+			$this->_populateItemCache();
+			$items = (array_key_exists($itemtype, self::$_item_cache)) ? self::$_item_cache[$itemtype] : array();
+			foreach ($items as $id => $item)
 			{
-				$crit->addInsert(self::ITEMDATA, $itemdata);
+				if ($item->getItemdata() != $itemdata) unset($items[$id]);
 			}
-			$crit->addInsert(self::SCOPE, $scope);
-			$res = $this->doInsert($crit);
-			
-			return $res;
-		}
 
-		public function saveById($name, $itemdata, $order, $id)
-		{
-			$crit = $this->getCriteria();
-			$crit->addUpdate(self::NAME, $name);
-			$crit->addUpdate(self::ITEMDATA, $itemdata);
-			$crit->addUpdate(self::ORDER, $order);
-
-			$res = $this->doUpdateById($crit, $id);
+			return $items;
 		}
 
 		public function deleteByTypeAndId($type, $id)
@@ -133,5 +89,17 @@
 
 			$res = $this->doDelete($crit);
 		}
-		
+
+		public function saveOptionOrder($options, $type)
+		{
+			foreach ($options as $key => $option_id)
+			{
+				$crit = $this->getCriteria();
+				$crit->addUpdate(self::ORDER, $key + 1);
+				$crit->addWhere(self::ITEMTYPE, $type);
+				$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+				$this->doUpdateById($crit, $option_id);
+			}
+		}
+
 	}

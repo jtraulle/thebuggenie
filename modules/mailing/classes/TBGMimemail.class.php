@@ -56,8 +56,8 @@
 		protected function __construct($subject, $template, $parameters = array(), $language = null, $message_plain = null, $message_html = null, $recipients = array(), $charset = 'utf-8')
 		{
 			/* Prepare two separators. $sep1 for the html/text message part. $sep2 for the attachment part. */
-			for ($len = 10, $sep1 = ""; strlen($sep1) < $len; $sep1 .= chr(!mt_rand(0, 2) ? mt_rand(48, 57) : (!mt_rand(0, 1) ? mt_rand(65, 90) : mt_rand(97, 122))));
-			for ($len = 10, $sep2 = ""; strlen($sep2) < $len; $sep2 .= chr(!mt_rand(0, 2) ? mt_rand(48, 57) : (!mt_rand(0, 1) ? mt_rand(65, 90) : mt_rand(97, 122))));
+			for ($len = 10, $sep1 = ""; mb_strlen($sep1) < $len; $sep1 .= chr(!mt_rand(0, 2) ? mt_rand(48, 57) : (!mt_rand(0, 1) ? mt_rand(65, 90) : mt_rand(97, 122))));
+			for ($len = 10, $sep2 = ""; mb_strlen($sep2) < $len; $sep2 .= chr(!mt_rand(0, 2) ? mt_rand(48, 57) : (!mt_rand(0, 1) ? mt_rand(65, 90) : mt_rand(97, 122))));
 			$this->sep1 = "_1_" . bin2hex($sep1);
 			$this->sep2 = "_2_" . bin2hex($sep2);
 			
@@ -89,7 +89,7 @@
 				{
 					if (array_key_exists('name', $recipient))
 					{
-						$this->addTo($recipient['name'], $recipient['address']);
+						$this->addTo($recipient['address'], $recipient['name']);
 					}
 					elseif (count($recipient) == 2)
 					{
@@ -106,11 +106,12 @@
 				}
 			}
 			$this->charset = $charset;
-			$this->headers['X-Mailer'] = "PHP/" . phpversion();
+			$this->headers['X-Mailer'] = "TBG";
 			$this->headers['Subject'] = $subject;
 			$this->headers['Date'] = date('r');
 			$this->headers['MIME-Version'] = "1.0";
-			$this->headers['Message-ID'] = "<{$this->sep1}@{$_SERVER['SERVER_NAME']}>";
+			$server_name = TBGContext::getModule('mailing')->getMailingUrl(true);
+			$this->headers['Message-ID'] = "<{$this->sep1}@{$server_name}>";
 		}
 
 		public function setLanguage($language)
@@ -156,13 +157,14 @@
 			return $this->headers;
 		}
 
-		public function getHeadersAsString($include_subject = true)
+		public function getHeadersAsString($include_subject = true, $include_to = true)
 		{
 			$headers = $this->getHeaders();
 			$header = '';
 			foreach ($headers as $key => $val)
 			{
-				if (!$include_subject && strtolower($key) == 'subject') continue;
+				if (!$include_subject && mb_strtolower($key) == 'subject') continue;
+				if (!$include_to && mb_strtolower($key) == 'to') continue;
 				$header .= "{$key}: {$val}\r\n";
 			}
 			return $header;
@@ -199,7 +201,7 @@
 		public function getSubject()
 		{
 			$this->_translateSubject();
-			return $this->subject_translated;
+			return html_entity_decode($this->subject_translated);
 		}
 		
 		public function setMessagePlain($message)

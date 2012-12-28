@@ -1,5 +1,12 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
+	/**
+	 * @Table(name="mailing_queue")
+	 */
 	class TBGMailQueueTable extends TBGB2DBTable
 	{
 		
@@ -10,19 +17,9 @@
 		const DATE = 'mailing_queue.date';
 		const SCOPE = 'mailing_queue.scope';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGMailQueueTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGMailQueueTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addText(self::MESSAGE);
 			parent::_addInteger(self::DATE, 10);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
@@ -49,7 +46,7 @@
 			{
 				$crit->setLimit($limit);
 			}
-			$crit->addOrderBy(self::DATE, 'asc');
+			$crit->addOrderBy(self::DATE, Criteria::SORT_ASC);
 
 			$messages = array();
 			$res = $this->doSelect($crit);
@@ -69,7 +66,7 @@
 		public function deleteProcessedMessages($ids)
 		{
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::ID, (array) $ids, B2DBCriteria::DB_IN);
+			$crit->addWhere(self::ID, (array) $ids, Criteria::DB_IN);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 
 			$res = $this->doDelete($crit);

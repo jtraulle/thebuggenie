@@ -23,6 +23,7 @@
 		protected static $current_parser = null;
 
 		protected $preformat = null;
+		protected $quote = null;
 		protected $tablemode = null;
 		protected $opentablecol = false;
 		protected $options = array();
@@ -86,7 +87,7 @@
 				$issue_string = join('|', $issue_strings);
 				$issue_string = html_entity_decode($issue_string, ENT_QUOTES);
 				$issue_string = str_replace(array(' ', "'"), array('\s{1,1}', "\'"), $issue_string);
-				$regex = '#( |^)(?<!\!)(('.$issue_string.')\s\#?(([A-Z0-9]+\-)?\d+))#i';
+				$regex = '#( |^)(?<!\!)(('.$issue_string.')\s\#?(([A-Z0-9]+\-)?\d+))( \(.*?\))?#i';
 				TBGCache::add(TBGCache::KEY_TEXTPARSER_ISSUE_REGEX, $regex);
 			}
 			return $regex;
@@ -132,7 +133,7 @@
 				return $matches[0] . "\n";
 			}
 			
-			$level = strlen($matches[1]);
+			$level = mb_strlen($matches[1]);
 			$content = $matches[2];
 			$this->stop = true;
 
@@ -170,12 +171,12 @@
 			$listtypes = array('*' => 'ul', '#' => 'ol');
 			$output = "";
 
-			$newlevel = ($close) ? 0 : strlen($matches[1]);
+			$newlevel = ($close) ? 0 : mb_strlen($matches[1]);
 
 			while ($this->list_level != $newlevel)
 			{
-				$listchar = substr($matches[1], -1);
-				if (is_string($listchar) || is_numeric($listchar))
+				$listchar = mb_substr($matches[1], -1);
+				if ((is_string($listchar) || is_numeric($listchar)) && array_key_exists($listchar, $listtypes))
 				{
 					$listtype = $listtypes[$listchar];
 				}
@@ -184,10 +185,10 @@
 					$listtype = 'ul';
 				}
 
-				if ($this->list_level > $newlevel)
+				if ($this->list_level >= $newlevel)
 				{
 					$listtype = '/'.array_pop($this->list_level_types);
-					$this->list_level--;
+					if ($this->list_level > $newlevel) $this->list_level--;
 				} 
 				else
 				{
@@ -224,7 +225,7 @@
 			{
 				case ';':
 					$term = $matches[2];
-					$p = strpos($term, ' :');
+					$p = mb_strpos($term, ' :');
 					if ($p !== false)
 					{
 						list($term, $definition) = explode(':', $term);
@@ -258,9 +259,29 @@
 			if (!$this->preformat) $output .= "<pre>";
 			$this->preformat = true;
 
-			$output .= $matches[1];
+			$output .= $matches[0];
 
 			return $output."\n";
+		}
+
+		protected function _parse_quote($matches, $close = false)
+		{
+			if ($close)
+			{
+				$this->quote = false;
+				return "</blockquote>\n";
+			}
+
+			$this->stop_all = true;
+
+			$output = "";
+			if (!$this->quote) $output .= "<blockquote>";
+			$this->quote = true;
+
+			if ($matches[2])
+				$output .= $matches[2]."<br>";
+
+			return $output;
 		}
 
 		protected function _parse_horizontalrule($matches)
@@ -304,7 +325,7 @@
 
 		protected function _parse_internallink($matches)
 		{
-			$href = html_entity_decode($matches[4]);
+			$href = html_entity_decode($matches[4], ENT_QUOTES, 'UTF-8');
 			
 			if (isset($matches[6]) && $matches[6])
 			{
@@ -320,26 +341,26 @@
 			}
 			$namespace = $matches[3];
 
-			if (strtolower($namespace) == 'category')
+			if (mb_strtolower($namespace) == 'category')
 			{
-				if (substr($matches[2], 0, 1) != ':')
+				if (mb_substr($matches[2], 0, 1) != ':')
 				{
 					$this->addCategorizer($href);
 					return '';
 				}
 			}
 
-			if (strtolower($namespace) == 'wikipedia')
+			if (mb_strtolower($namespace) == 'wikipedia')
 			{
 				if (TBGContext::isCLI()) return $href;
 				
 				$options = explode('|', $title);
-				$title = (array_key_exists(5, $matches) && (strpos($matches[5], '|') !== false) ? '' : $namespace.':') . array_pop($options);
+				$title = (array_key_exists(5, $matches) && (mb_strpos($matches[5], '|') !== false) ? '' : $namespace.':') . array_pop($options);
 
 				return link_tag('http://en.wikipedia.org/wiki/'.$href, $title);
 			}
 
-			if (in_array(strtolower($namespace), array('image', 'file')))
+			if (in_array(mb_strtolower($namespace), array('image', 'file')))
 			{
 				$retval = $namespace . ':' . $href;
 				if (!TBGContext::isCLI())
@@ -367,24 +388,28 @@
 						$caption = ($caption != '') ? $caption : $file->getOriginalFilename();
 						$file_link = make_url('showfile', array('id' => $file->getID()));
 					}
+					else
+					{
+						$caption = (!empty($options)) ? array_pop($options) : false;
+					}
 
-					if ((($file instanceof TBGFile && $file->isImage()) || $articlemode) && (strtolower($namespace) == 'image' || $issuemode) && TBGSettings::isCommentImagePreviewEnabled())
+					if ((($file instanceof TBGFile && $file->isImage()) || $articlemode) && (mb_strtolower($namespace) == 'image' || $issuemode) && TBGSettings::isCommentImagePreviewEnabled())
 					{
 						$divclasses = array('image_container');
 						$style_dimensions = '';
 						foreach ($options as $option)
 						{
-							$optionlen = strlen($option);
-							if (substr($option, $optionlen - 2) == 'px')
+							$optionlen = mb_strlen($option);
+							if (mb_substr($option, $optionlen - 2) == 'px')
 							{
 								if (is_numeric($option[0]))
 								{
-									$style_dimensions = ' width: '.$option[0].';';
+									$style_dimensions = ' width: '.$option.';';
 									break;
 								}
 								else
 								{
-									$style_dimensions = ' height: '.substr($option[0], 1).';';
+									$style_dimensions = ' height: '.mb_substr($option, 1).';';
 									break;
 								}
 							}
@@ -438,7 +463,7 @@
 				return link_tag(make_url($href), $title); // $this->parse_image($href,$title,$options);
 			}
 
-			if (substr($href, 0, 1) == '/')
+			if (mb_substr($href, 0, 1) == '/')
 			{
 				if (TBGContext::isCLI()) return $href;
 				
@@ -474,18 +499,27 @@
 
 		protected function _parse_externallink($matches)
 		{
-			$href = html_entity_decode($matches[2]);
-			$title = null;
-			$title = (array_key_exists(3, $matches)) ? $matches[3] : $matches[2];
-			if (!$title)
+			if (!is_array($matches))
 			{
+				if (is_null($matches)) return '';
+
 				$this->linknumber++;
-				$title = "[{$this->linknumber}]";
+				$href = $title = html_entity_decode($matches);
 			}
+			else
+			{
+				$href = html_entity_decode($matches[2]);
+				$title = null;
+				$title = (array_key_exists(3, $matches)) ? $matches[3] : $matches[2];
+				if (!$title)
+				{
+					$this->linknumber++;
+					$title = "[{$this->linknumber}]";
+				}
 
-			if (TBGContext::isCLI()) return $href;
-
-			return link_tag($href, $title, array('target' => '_new'));
+				if (TBGContext::isCLI()) return $href;
+			}
+			return link_tag(str_replace(array('[',']'), array('&#91;', '&#93;'), $href), str_replace(array('[',']'), array('&#91;', '&#93;'), $title), array('target' => '_new'));
 		}
 
 		protected function _parse_autosensedlink($matches)
@@ -517,7 +551,7 @@
 
 		protected function _parse_emphasize($matches)
 		{
-			$amount = strlen($matches[1]);
+			$amount = mb_strlen($matches[1]);
 			return $this->_emphasize($amount);
 		}
 
@@ -600,9 +634,9 @@
 			{
 				$output .= $matches[1];
 			}
-			if (strpos($output, "cellspacing") === false)
+			if (mb_strpos($output, "cellspacing") === false)
 			{
-				$output .= " cellspacing=0";
+				$output .= " class=\"sortable resizable\" cellspacing=0";
 			}
 			$output .= ">";
 			$this->tablemode = true;
@@ -713,6 +747,7 @@
 			$line_regexes = array();
 			
 			$line_regexes['preformat'] = '^\s{1}(.*?)$';
+			$line_regexes['quote'] = '^(\&gt\;)(.*?)$';
 			$line_regexes['definitionlist'] = '^([\;\:])(?!\-?[\(\)\D\/P])\s*(.*?)$';
 			$line_regexes['newline'] = '^$';
 			$line_regexes['list'] = '^([\*\#]+)(.*?)$';
@@ -732,10 +767,10 @@
 				$char_regexes[] = array('/(\{\{([^\}]*?)\}\})/i', array($this, '_parse_variable'));
 			}
 			$char_regexes[] = array('/(\[\[(\:?([^\]]*?)\:)?([^\]]*?)(\|([^\]]*?))?\]\]([a-z]+)?)/i', array($this, "_parse_save_ilink"));
+			$char_regexes[] = array('/(^|[ \t\r\n])((ftp|http|https|gopher|mailto|news|nntp|telnet|wais|file|prospero|aim|webcal):(([A-Za-z0-9$_.+!*(),;\[\]\/?:@&~=-])|%[A-Fa-f0-9]{2}){2,}(#([a-zA-Z0-9][a-zA-Z0-9\[\]$_.+!*(),;\/?:@&~=%-]*))?([A-Za-z0-9\[\]$_+!*();\/?:~-]))/', array($this, '_parse_autosensedlink'));
 			$char_regexes[] = array('/(\[([^\]]*?)(\s+[^\]]*?)?\])/i', array($this, "_parse_save_elink"));
 			$char_regexes[] = array(self::getIssueRegex(), array($this, '_parse_issuelink'));
 			$char_regexes[] = array('/(?<=\s|^)(\:\(|\:-\(|\:\)|\:-\)|8\)|8-\)|B\)|B-\)|\:-\/|\:-D|\:-P|\(\!\)|\(\?\))(?=\s|$)/i', array($this, '_getsmiley'));
-			$char_regexes[] = array('/(^|[ \t\r\n])((ftp|http|https|gopher|mailto|news|nntp|telnet|wais|file|prospero|aim|webcal):(([A-Za-z0-9$_.+!*(),;\/?:@&~=-])|%[A-Fa-f0-9]{2}){2,}(#([a-zA-Z0-9][a-zA-Z0-9$_.+!*(),;\/?:@&~=%-]*))?([A-Za-z0-9$_+!*();\/?:~-]))/', array($this, '_parse_autosensedlink'));
 			foreach (self::getRegexes() as $regex)
 			{
 				$char_regexes[] = array($regex[0], $regex[1]);
@@ -767,18 +802,19 @@
 				}
 			}
 
-			$isline = (bool) (strlen(trim($line)) > 0);
+			$isline = (bool) (mb_strlen(trim($line)) > 0);
 
 			// if this wasn't a list item, and we are in a list, close the list tag(s)
 			if (($this->list_level > 0) && !array_key_exists('list', $called)) $line = $this->_parse_list(false, true) . $line;
 			if ($this->deflist && !array_key_exists('definitionlist', $called)) $line = $this->_parse_definitionlist(false, true) . $line;
 
 			if ($this->preformat && !array_key_exists('preformat', $called)) $line = $this->_parse_preformat(false, true) . $line;
+			if ($this->quote && !array_key_exists('quote', $called)) $line = $this->_parse_quote(false, true) . $line;
 
 			// suppress linebreaks for the next line if we just displayed one; otherwise re-enable them
 			if ($isline) $this->ignore_newline = (array_key_exists('newline', $called) || array_key_exists('headers', $called));
 
-			if (substr($line, -1) != "\n")
+			if (mb_substr($line, -1) != "\n")
 			{
 				$line = $line . " \n";
 			}
@@ -788,6 +824,7 @@
 		
 		protected function _parseText($options = array())
 		{
+			$options = array_merge($options, $this->options);
 			TBGContext::loadLibrary('common');
 			
 			self::$current_parser = $this;
@@ -809,12 +846,18 @@
 			$lines = explode("\n", $text);
 			foreach ($lines as $line)
 			{
-				if (substr($line, -1) == "\r")
+				if (mb_substr($line, -1) == "\r")
 				{
-					$line = substr($line, 0, -1);
+					$line = mb_substr($line, 0, -1);
 				}
 				$output .= $this->_parse_line($line, $options);
 			}
+
+			// Check if we need to close any tags in case the list items, etc were the last line
+			if ($this->list_level > 0) $output .= $this->_parse_list(false, true);
+			if ($this->deflist) $output .= $this->_parse_definitionlist(false, true);
+			if ($this->preformat) $output .= $this->_parse_preformat(false, true);
+			if ($this->quote) $output .= $this->_parse_quote(false, true);
 			
 			$this->nowikis = array_reverse($this->nowikis);
 			$this->codeblocks = array_reverse($this->codeblocks);
@@ -823,6 +866,10 @@
 			if (!array_key_exists('ignore_toc', $options))
 			{
 				$output = preg_replace_callback('/\{\{TOC\}\}/', array($this, "_parse_add_toc"), $output);
+			}
+			else
+			{
+				$output = str_replace('{{TOC}}', '', $output);
 			}
 			$output = preg_replace_callback('/\|\|\|NOWIKI\|\|\|/i', array($this, "_parse_restore_nowiki"), $output);
 			if (!isset($options['no_code_highlighting']))
@@ -907,92 +954,95 @@
 				return '';
 			}
 			$codeblock = $matches[2];
-			$params = $matches[1];
+			if (strlen(trim($codeblock)))
+			{
+				$params = $matches[1];
 
-			$language = preg_match('/(?<=lang=")(.+?)(?=")/', $params, $matches);
+				$language = preg_match('/(?<=lang=")(.+?)(?=")/', $params, $matches);
 
-			if ($language !== 0)
-			{
-				$language = $matches[0];
-			} 
-			else
-			{
-				$language = TBGSettings::get('highlight_default_lang');
-			}
-			
-			$numbering_startfrom = preg_match('/(?<=line start=")(.+?)(?=")/', $params, $matches);
-			if ($numbering_startfrom !== 0)
-			{
-				$numbering_startfrom = (int) $matches[0];
-			} 
-			else
-			{
-				$numbering_startfrom = 1;
-			}
-			
-			$geshi = new GeSHi($codeblock, $language);
-			
-			$highlighting = preg_match('/(?<=line=")(.+?)(?=")/', $params, $matches);
-			if ($highlighting !== 0)
-			{
-				$highlighting = $matches[0];
-			} 
-			else
-			{
-				$highlighting = false;
-			}
-			
-			$interval = preg_match('/(?<=highlight=")(.+?)(?=")/', $params, $matches);
-			if ($interval !== 0)
-			{
-				$interval = $matches[0];
-			} 
-			else
-			{
-				$interval = TBGSettings::get('highlight_default_interval');
-			}
-
-			if ($highlighting === false)
-			{
-				switch (TBGSettings::get('highlight_default_numbering'))
+				if ($language !== 0)
 				{
-					case 1:
-						// Line numbering with a highloght every n rows
-						$geshi->enable_line_numbers(GESHI_FANCY_LINE_NUMBERS, $interval);
-						$geshi->start_line_numbers_at($numbering_startfrom);
-						break;
-					case 2:
-						// Normal line numbering
-						$geshi->enable_line_numbers(GESHI_NORMAL_LINE_NUMBERS, 10);
-						$geshi->start_line_numbers_at($numbering_startfrom);
-						break;
-					case 3:
-						break; // No numbering
+					$language = $matches[0];
 				}
-			}
-			else
-			{
-				switch($highlighting)
+				else
 				{
-					case 'highlighted':
-					case 'GESHI_FANCY_LINE_NUMBERS':
-						// Line numbering with a highloght every n rows
-						$geshi->enable_line_numbers(GESHI_FANCY_LINE_NUMBERS, $interval);
-						$geshi->start_line_numbers_at($numbering_startfrom);
-						break;
-					case 'normal':
-					case 'GESHI_NORMAL_LINE_NUMBERS':
-						// Normal line numbering
-						$geshi->enable_line_numbers(GESHI_NORMAL_LINE_NUMBERS, 10);
-						$geshi->start_line_numbers_at($numbering_startfrom);
-						break;
-					case 3:
-						break; // No numbering
+					$language = TBGSettings::get('highlight_default_lang');
 				}
-			}
 
-			$codeblock = $geshi->parse_code();
-			unset($geshi);
+				$numbering_startfrom = preg_match('/(?<=line start=")(.+?)(?=")/', $params, $matches);
+				if ($numbering_startfrom !== 0)
+				{
+					$numbering_startfrom = (int) $matches[0];
+				}
+				else
+				{
+					$numbering_startfrom = 1;
+				}
+
+				$geshi = new GeSHi($codeblock, $language);
+
+				$highlighting = preg_match('/(?<=line=")(.+?)(?=")/', $params, $matches);
+				if ($highlighting !== 0)
+				{
+					$highlighting = $matches[0];
+				}
+				else
+				{
+					$highlighting = false;
+				}
+
+				$interval = preg_match('/(?<=highlight=")(.+?)(?=")/', $params, $matches);
+				if ($interval !== 0)
+				{
+					$interval = $matches[0];
+				}
+				else
+				{
+					$interval = TBGSettings::get('highlight_default_interval');
+				}
+
+				if ($highlighting === false)
+				{
+					switch (TBGSettings::get('highlight_default_numbering'))
+					{
+						case 1:
+							// Line numbering with a highloght every n rows
+							$geshi->enable_line_numbers(GESHI_FANCY_LINE_NUMBERS, $interval);
+							$geshi->start_line_numbers_at($numbering_startfrom);
+							break;
+						case 2:
+							// Normal line numbering
+							$geshi->enable_line_numbers(GESHI_NORMAL_LINE_NUMBERS, 10);
+							$geshi->start_line_numbers_at($numbering_startfrom);
+							break;
+						case 3:
+							break; // No numbering
+					}
+				}
+				else
+				{
+					switch($highlighting)
+					{
+						case 'highlighted':
+						case 'GESHI_FANCY_LINE_NUMBERS':
+							// Line numbering with a highloght every n rows
+							$geshi->enable_line_numbers(GESHI_FANCY_LINE_NUMBERS, $interval);
+							$geshi->start_line_numbers_at($numbering_startfrom);
+							break;
+						case 'normal':
+						case 'GESHI_NORMAL_LINE_NUMBERS':
+							// Normal line numbering
+							$geshi->enable_line_numbers(GESHI_NORMAL_LINE_NUMBERS, 10);
+							$geshi->start_line_numbers_at($numbering_startfrom);
+							break;
+						case 3:
+							break; // No numbering
+					}
+				}
+
+				$codeblock = $geshi->parse_code();
+				unset($geshi);
+			}
 			return '<code>' . $codeblock . '</code>';
 		}
 

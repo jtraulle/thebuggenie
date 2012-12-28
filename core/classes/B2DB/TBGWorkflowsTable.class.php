@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Workflows table
 	 *
@@ -15,6 +19,9 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="workflows")
+	 * @Entity(class="TBGWorkflow")
 	 */
 	class TBGWorkflowsTable extends TBGB2DBTable
 	{
@@ -27,35 +34,24 @@
 		const DESCRIPTION = 'workflows.description';
 		const IS_ACTIVE = 'workflows.is_active';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGWorkflowsTable
-		 */
-		public static function getTable()
-		{
-			return B2DB::getTable('TBGWorkflowsTable');
-		}
+//		public function __construct()
+//		{
+//			parent::__construct(self::B2DBNAME, self::ID);
+//			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+//			parent::_addVarchar(self::NAME, 200);
+//			parent::_addText(self::DESCRIPTION, false);
+//			parent::_addBoolean(self::IS_ACTIVE);
+//		}
 
-		public function __construct()
+		public function getAll($scope_id = null)
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-			parent::_addVarchar(self::NAME, 200);
-			parent::_addText(self::DESCRIPTION, false);
-			parent::_addBoolean(self::IS_ACTIVE);
-		}
-
-		public function getAll($scope = null)
-		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
+			$scope_id = ($scope_id === null) ? TBGContext::getScope()->getID() : $scope_id;
+			$scope_id = (is_object($scope_id)) ? $scope_id->getID() : $scope_id;
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, $scope);
-			$crit->addOrderBy(self::ID, B2DBCriteria::SORT_ASC);
+			$crit->addWhere(self::SCOPE, $scope_id);
+			$crit->addOrderBy(self::ID, Criteria::SORT_ASC);
 
-			$res = $this->doSelect($crit);
-
-			return $res;
+			return $this->select($crit);
 		}
 
 		public function getByID($id)
@@ -73,6 +69,16 @@
 			$crit->addWhere(self::SCOPE, $scope);
 
 			return $this->doCount($crit);
+		}
+
+		public function getFirstIdByScope($scope_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addSelectionColumn(self::ID, 'id');
+			$crit->addWhere(self::SCOPE, $scope_id);
+			$crit->addOrderBy(self::ID);
+			$row = $this->doSelectOne($crit);
+			return ($row) ? $row->get('id') : 0;
 		}
 
 	}

@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Notifications table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="notifications")
 	 */
 	class TBGNotificationsTable extends TBGB2DBTable 
 	{
@@ -33,9 +39,9 @@
 		const CONTENTS = 'notifications.contents';
 		const STATUS = 'notifications.status';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::MODULE_NAME, 50);
 			parent::_addInteger(self::NOTIFY_TYPE, 5);
 			parent::_addInteger(self::TARGET_ID, 10);
@@ -44,7 +50,7 @@
 			parent::_addInteger(self::STATUS, 5);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::GID, TBGGroupsTable::getTable(), TBGGroupsTable::ID);
-			parent::_addForeignKeyColumn(self::TID, B2DB::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
+			parent::_addForeignKeyColumn(self::TID, Core::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 		}
 		

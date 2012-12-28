@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Team members table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="teammembers")
 	 */
 	class TBGTeamMembersTable extends TBGB2DBTable 
 	{
@@ -26,23 +32,17 @@
 		const UID = 'teammembers.uid';
 		const TID = 'teammembers.tid';
 		
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGTeamMembersTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGTeamMembersTable');
+			parent::_setup(self::B2DBNAME, self::ID);
+			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable());
+			parent::_addForeignKeyColumn(self::TID, TBGTeamsTable::getTable());
+			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable());
 		}
 
-		public function __construct()
+		protected function _setupIndexes()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
-			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
-			parent::_addForeignKeyColumn(self::TID, B2DB::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			$this->_addIndex('scope_uid', array(self::UID, self::SCOPE));
 		}
 
 		public function getUIDsForTeamID($team_id)
@@ -83,7 +83,7 @@
 			{
 				$crit = $this->getCriteria();
 				$crit->addWhere(self::UID, $user_id);
-				$crit->addWhere(self::TID, array_keys($team_ids), B2DBCriteria::DB_IN);
+				$crit->addWhere(self::TID, array_keys($team_ids), Criteria::DB_IN);
 				$res = $this->doDelete($crit);
 			}
 		}

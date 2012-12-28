@@ -15,20 +15,18 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGIssuetypeSchemesTable")
 	 */
-	class TBGIssuetypeScheme extends TBGIdentifiableClass
+	class TBGIssuetypeScheme extends TBGIdentifiableScopedClass
 	{
 
-		static protected $_b2dbtablename = 'TBGIssuetypeSchemesTable';
-		
-		/**
-		 * The default (core) issuetype scheme
-		 * 
-		 * @var TBGIssuetypeScheme
-		 */
-		static protected $_core_scheme = null;
-		
 		protected static $_schemes = null;
+
+		/**
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
 
 		protected $_visiblefields = array();
 		
@@ -40,6 +38,7 @@
 		 * The issuetype description
 		 *
 		 * @var string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_description = null;
 
@@ -47,20 +46,13 @@
 		{
 			if (self::$_schemes === null)
 			{
-				self::$_schemes = array();
-				if ($res = TBGIssuetypeSchemesTable::getTable()->getAll())
-				{
-					while ($row = $res->getNextRow())
-					{
-						$scheme = TBGContext::factory()->TBGIssuetypeScheme($row->get(TBGIssuetypeSchemesTable::ID), $row);
-						
-						if (self::$_core_scheme === null)
-							self::$_core_scheme = $scheme;
-						
-						self::$_schemes[$row->get(TBGIssuetypeSchemesTable::ID)] = $scheme;
-					}
-				}
+				self::$_schemes = TBGIssuetypeSchemesTable::getTable()->getAll();
 			}
+		}
+
+		protected function _postSave($is_new)
+		{
+			TBGCache::delete(TBGCache::KEY_TEXTPARSER_ISSUE_REGEX);
 		}
 		
 		/**
@@ -74,17 +66,6 @@
 			return self::$_schemes;
 		}
 		
-		/**
-		 * Return the default (core) issuetype scheme
-		 * 
-		 * @return TBGIssuetypeScheme
-		 */
-		public static function getCoreScheme()
-		{
-			self::_populateSchemes();
-			return self::$_core_scheme;
-		}
-
 		public static function loadFixtures(TBGScope $scope)
 		{
 			$scheme = new TBGIssuetypeScheme();
@@ -92,6 +73,8 @@
 			$scheme->setName("Default issuetype scheme");
 			$scheme->setDescription("This is the default issuetype scheme. It is used by all projects with no specific issuetype scheme selected. This scheme cannot be edited or removed.");
 			$scheme->save();
+
+			TBGSettings::saveSetting(TBGSettings::SETTING_DEFAULT_ISSUETYPESCHEME, $scheme->getID(), 'core', $scope->getID());
 			
 			foreach (TBGIssuetype::getAll() as $issuetype)
 			{
@@ -137,7 +120,7 @@
 		 */
 		public function isCore()
 		{
-			return ($this->getID() == self::getCoreScheme()->getID());
+			return ($this->getID() == TBGSettings::getCoreIssuetypeScheme()->getID());
 		}
 
 		protected function _populateAssociatedIssuetypes()
@@ -249,6 +232,18 @@
 			}
 		}
 
+		public function getVisibleFields()
+		{
+			$fields = array();
+			$types = $this->getIssuetypes();
+			foreach ($types as $type) {
+				$this->_populateVisibleFieldsForIssuetype($type);
+				$fields = array_merge($fields, $this->_visiblefields[$type->getID()]);
+			}
+			ksort($fields);
+			return $fields;
+		}
+
 		public function getVisibleFieldsForIssuetype(TBGIssuetype $issuetype)
 		{
 			$this->_populateVisibleFieldsForIssuetype($issuetype);
@@ -279,4 +274,24 @@
 			return $this->_number_of_projects;
 		}
 		
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 	}

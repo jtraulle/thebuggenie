@@ -1,10 +1,11 @@
 <?php
 
+	/**
+	 * @Table(name="TBGCustomFieldsTable")
+	 */
 	class TBGCustomDatatype extends TBGDatatypeBase
 	{
 		
-		static protected $_b2dbtablename = 'TBGCustomFieldsTable';
-
 		const DROPDOWN_CHOICE_TEXT = 1;
 		const INPUT_TEXT = 2;
 		const INPUT_TEXTAREA_MAIN = 3;
@@ -21,9 +22,7 @@
 		const USER_CHOICE = 14;
 		const TEAM_CHOICE = 15;
 		const USER_OR_TEAM_CHOICE = 17;
-		const DROPDOWN_CHOICE_TEXT_COLORED = 18;
-		const DROPDOWN_CHOICE_TEXT_COLOR = 19;
-		const DROPDOWN_CHOICE_TEXT_ICON = 20;
+		const CALCULATED_FIELD = 18;
 
 		protected static $_types = null;
 
@@ -31,6 +30,7 @@
 		 * This custom types options (if any)
 		 *
 		 * @var array
+		 * @Relates(class="TBGCustomDatatypeOption", collection=true, foreign_column="customfield_id", orderby="sort_order")
 		 */
 		protected $_options = null;
 
@@ -38,6 +38,7 @@
 		 * The custom types description
 		 *
 		 * @var string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_description = null;
 
@@ -45,6 +46,7 @@
 		 * The custom types instructions
 		 *
 		 * @var string
+		 * @Column(type="text")
 		 */
 		protected $_instructions = null;
 
@@ -57,14 +59,7 @@
 		{
 			if (self::$_types === null)
 			{
-				self::$_types = array();
-				if ($items = B2DB::getTable('TBGCustomFieldsTable')->getAll())
-				{
-					foreach ($items as $row_id => $row)
-					{
-						self::$_types[$row->get(TBGCustomFieldsTable::FIELD_KEY)] = TBGContext::factory()->TBGCustomDatatype($row_id, $row);
-					}
-				}
+				self::$_types = TBGCustomFieldsTable::getTable()->getAll();
 			}
 			return self::$_types;
 		}
@@ -89,6 +84,7 @@
 			// $types[self::EDITIONS_LIST] = $i18n->__('Add one or more editions from the list of available editions');
 			$types[self::EDITIONS_CHOICE] = $i18n->__('Select a edition from the list of available editions');
 			$types[self::STATUS_CHOICE] = $i18n->__('Dropdown list with statuses');
+			$types[self::CALCULATED_FIELD] = $i18n->__('Calculated Field');
 			// $types[self::USER_CHOICE] = $i18n->__('Find and pick a user');
 			// $types[self::TEAM_CHOICE] = $i18n->__('Find and pick a team');
 			// $types[self::USER_OR_TEAM_CHOICE] = $i18n->__('Find and pick a user or a team');
@@ -97,8 +93,9 @@
 
 		}
 
-		public function _preSave($is_new)
+		protected function _preSave($is_new)
 		{
+			parent::_preSave($is_new);
 			if ($is_new)
 			{
 				$this->_generateKey();
@@ -114,10 +111,10 @@
 		 *
 		 * @param integer $id
 		 */
-		public function _preDelete()
+		protected function _preDelete()
 		{
-			$key = B2DB::getTable('TBGCustomFieldsTable')->getKeyFromId($this->getID());
-			B2DB::getTable('TBGCustomFieldOptionsTable')->doDeleteByFieldKey($key);
+			TBGCustomFieldOptionsTable::getTable()->deleteCustomFieldOptions($this->getID());
+			\b2db\Core::getTable('TBGIssueFieldsTable')->deleteByIssueFieldKey($this->getKey());
 		}
 
 		public static function doesKeyExist($key)
@@ -134,7 +131,7 @@
 		 */
 		public static function getByKey($key)
 		{
-			$row = B2DB::getTable('TBGCustomFieldsTable')->getByKey($key);
+			$row = \b2db\Core::getTable('TBGCustomFieldsTable')->getByKey($key);
 			if ($row)
 			{
 				return TBGContext::factory()->TBGCustomDatatype($row->get(TBGCustomFieldsTable::ID), $row);
@@ -142,9 +139,20 @@
 			return null;
 		}
 
+		public static function getCustomChoiceFieldsAsArray()
+		{
+			return array(self::CHECKBOX_CHOICES,
+						self::DROPDOWN_CHOICE_TEXT,
+						self::RADIO_CHOICE,
+						self::CALCULATED_FIELD
+            );
+		}
+
 		public static function getChoiceFieldsAsArray()
 		{
-			return array(self::CHECKBOX_CHOICES, self::DROPDOWN_CHOICE_TEXT, self::DROPDOWN_CHOICE_TEXT_COLOR, self::DROPDOWN_CHOICE_TEXT_COLORED, self::DROPDOWN_CHOICE_TEXT_ICON, self::RADIO_CHOICE);
+			return array(self::CHECKBOX_CHOICES, self::DROPDOWN_CHOICE_TEXT, self::RADIO_CHOICE, self::RELEASES_CHOICE,
+			             self::COMPONENTS_CHOICE, self::EDITIONS_CHOICE, self::STATUS_CHOICE, self::USER_CHOICE,
+			             self::TEAM_CHOICE, self::USER_OR_TEAM_CHOICE);
 		}
 
 		/**
@@ -152,7 +160,7 @@
 		 * 
 		 * @param B2DBrow $row [optional] A B2DBrow to use
 		 */
-		public function _construct(B2DBRow $row, $foreign_key = null)
+		public function _construct(\b2db\Row $row, $foreign_key = null)
 		{
 			$this->_description = $this->_description ?: $this->_name;
 		}
@@ -161,7 +169,7 @@
 		{
 			if ($this->_options === null)
 			{
-				$this->_options = TBGCustomDatatypeOption::getAllByKey($this->_key);
+				$this->_b2dbLazyload('_options');
 			}
 		}
 
@@ -176,12 +184,21 @@
 
 		public function createNewOption($name, $value, $itemdata = null)
 		{
+			if ($this->getType() == self::CALCULATED_FIELD) {
+				// Only allow one option/formula for the calculated field
+				$opts = $this->getOptions();
+				foreach ($opts as $option) {
+					$option->delete();
+				}
+			}
+
 			$option = new TBGCustomDatatypeOption();
 			$option->setName($name);
 			$option->setItemtype($this->_itemtype);
 			$option->setKey($this->getKey());
 			$option->setValue($value);
 			$option->setItemdata($itemdata);
+			$option->setCustomdatatype($this->_id);
 			$option->save();
 			$this->_options = null;
 			return $option;
@@ -219,6 +236,11 @@
 		}
 
 		public function hasCustomOptions()
+		{
+			return (bool) in_array($this->getType(), self::getCustomChoiceFieldsAsArray());
+		}
+
+		public function hasPredefinedOptions()
 		{
 			return (bool) in_array($this->getType(), self::getChoiceFieldsAsArray());
 		}
@@ -288,6 +310,34 @@
 		 */
 		public function isVisibleForIssuetype($issuetype_id)
 		{
+			return true;
+		}
+
+		/**
+		 * Whether or not this custom data type is searchable from the Issues filter
+		 *
+		 * @return bool
+		 */
+		public function isSearchable()
+		{
+			switch ($this->getType()) {
+				case self::CALCULATED_FIELD:
+					return false;
+			}
+			return true;
+		}
+
+		/**
+		 * Whether or not this custom data type is editable from the Issues detail page
+		 *
+		 * @return bool
+		 */
+		public function isEditable()
+		{
+			switch ($this->getType()) {
+				case self::CALCULATED_FIELD:
+					return false;
+			}
 			return true;
 		}
 

@@ -1,5 +1,10 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion,
+		b2db\Table;
+
 	/**
 	 * Users table
 	 *
@@ -15,14 +20,16 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="users")
+	 * @Entity(class="TBGUser")
 	 */
 	class TBGUsersTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 1;
+		const B2DB_TABLE_VERSION = 2;
 		const B2DBNAME = 'users';
 		const ID = 'users.id';
-		const SCOPE = 'users.scope';
 		const UNAME = 'users.username';
 		const PASSWORD = 'users.password';
 		const BUDDYNAME = 'users.buddyname';
@@ -42,64 +49,69 @@
 		const PRIVATE_EMAIL = 'users.private_email';
 		const JOINED = 'users.joined';
 		const GROUP_ID = 'users.group_id';
+		const OPENID_LOCKED = 'users.openid_locked';
 		
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGUsersTable
-		 */
-		public static function getTable()
+		public function getAll()
 		{
-			return B2DB::getTable('TBGUsersTable');
-		}
-		
-		public function getAll($scope = null)
-		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
-			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, $scope);
-			
-			$res = $this->doSelect($crit, 'none');
+			$res = $this->doSelectAll();
 			
 			return $res;
 		}
 
-		public function __construct()
+		protected function _setupIndexes()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
-			parent::_addVarchar(self::UNAME, 50);
-			parent::_addVarchar(self::PASSWORD, 50);
-			parent::_addVarchar(self::BUDDYNAME, 50);
-			parent::_addVarchar(self::REALNAME, 100);
-			parent::_addVarchar(self::EMAIL, 200);
-			parent::_addForeignKeyColumn(self::USERSTATE, B2DB::getTable('TBGUserStateTable'), TBGUserStateTable::ID);
-			parent::_addBoolean(self::CUSTOMSTATE);
-			parent::_addVarchar(self::HOMEPAGE, 250, '');
-			parent::_addVarchar(self::LANGUAGE, 100, '');
-			parent::_addInteger(self::LASTSEEN, 10);
-			parent::_addInteger(self::QUOTA);
-			parent::_addBoolean(self::ACTIVATED);
-			parent::_addBoolean(self::ENABLED);
-			parent::_addBoolean(self::DELETED);
-			parent::_addVarchar(self::AVATAR, 30, '');
-			parent::_addBoolean(self::USE_GRAVATAR, true);
-			parent::_addBoolean(self::PRIVATE_EMAIL);
-			parent::_addInteger(self::JOINED, 10);
-			parent::_addForeignKeyColumn(self::GROUP_ID, TBGGroupsTable::getTable(), TBGGroupsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			$this->_addIndex('userstate', self::USERSTATE);
+			$this->_addIndex('username_password', array(self::UNAME, self::PASSWORD));
+			$this->_addIndex('username_deleted', array(self::UNAME, self::DELETED));
 		}
 
-		public function getByUsername($username, $scope = null)
+		protected function _migrateData(Table $old_users_table)
 		{
-			$scope = ($scope instanceof TBGScope) ? $scope->getID() : $scope;
+			switch ($old_users_table->getVersion())
+			{
+				case 1:
+					$users = $this->getUserMigrationDetails();
+					$table = TBGUserScopesTable::getTable();
+					foreach ($users as $user_id => $details)
+					{
+						$table->addUserToScope($user_id, $details['scope_id'], $details['group_id'], true);
+					}
+					break;
+			}
+		}
+
+		protected function getUserMigrationDetails()
+		{
+			$crit = $this->getCriteria();
+			$crit->addSelectionColumn('users.id');
+			$crit->addSelectionColumn('users.scope');
+			$crit->addSelectionColumn('users.group_id');
+			$res = $this->doSelect($crit);
+
+			$users = array();
+			while ($row = $res->getNextRow())
+			{
+				$users[$row->get('users.id')] = array('scope_id' => $row->get('users.scope'), 'group_id' => $row->get('users.group_id'));
+			}
+
+			return $users;
+		}
+
+		public function getByUsername($username)
+		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::UNAME, $username);
 			$crit->addWhere(self::DELETED, false);
-			if ($scope)
-				$crit->addWhere(self::SCOPE, $scope);
 			
-			return $this->doSelectOne($crit);
+			return $this->selectOne($crit);
+		}
+		
+		public function isUsernameAvailable($username)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::UNAME, $username);
+			
+			return !(bool) $this->doCount($crit);
 		}
 
 		public function getByUsernameAndPassword($username, $password)
@@ -108,60 +120,72 @@
 			$crit->addWhere(self::UNAME, $username);
 			$crit->addWhere(self::PASSWORD, $password);
 			$crit->addWhere(self::DELETED, false);
-			return $this->doSelectOne($crit);
+			return $this->selectOne($crit);
 		}
 
 		public function getByUserID($userid)
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::DELETED, false);
-			return $this->doSelectById($userid, $crit);
+			return $this->selectById($userid, $crit);
 		}
 
-		public function getByUserIDs($userids)
+		public function doesIDExist($userid)
 		{
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::ID, $userids, B2DBCriteria::DB_IN);
 			$crit->addWhere(self::DELETED, false);
-			return $this->doSelect($crit);
+			$crit->addWhere(self::ID, $userid);
+			return $this->doCount($crit);
 		}
 
 		public function getByDetails($details, $limit = null)
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::DELETED, false);
-			if (stristr($details, "@"))
+			if (mb_stristr($details, "@"))
 			{
-				$crit->addWhere(self::EMAIL, "%$details%", B2DBCriteria::DB_LIKE);
+				$crit->addWhere(self::EMAIL, "%$details%", Criteria::DB_LIKE);
 			}
 			else
 			{
-				$crit->addWhere(self::UNAME, "%$details%", B2DBCriteria::DB_LIKE);
+				$crit->addWhere(self::UNAME, "%$details%", Criteria::DB_LIKE);
 			}
 	
 			if ($limit)
 			{
 				$crit->setLimit($limit);
 			}
-			if (!$res = $this->doSelect($crit))
+			if (!$res = $this->select($crit))
 			{
 				$crit = $this->getCriteria();
 				$crit->addWhere(self::DELETED, false);
-				$crit->addWhere(self::UNAME, "%$details%", B2DBCriteria::DB_LIKE);
-				$crit->addOr(self::BUDDYNAME, "%$details%", B2DBCriteria::DB_LIKE);
-				$crit->addOr(self::REALNAME, "%$details%", B2DBCriteria::DB_LIKE);
-				$crit->addOr(self::EMAIL, "%$details%", B2DBCriteria::DB_LIKE);
+				$crit->addWhere(self::UNAME, "%$details%", Criteria::DB_LIKE);
+				$crit->addOr(self::BUDDYNAME, "%$details%", Criteria::DB_LIKE);
+				$crit->addOr(self::REALNAME, "%$details%", Criteria::DB_LIKE);
+				$crit->addOr(self::EMAIL, "%$details%", Criteria::DB_LIKE);
 				if ($limit)
 				{
 					$crit->setLimit($limit);
 				}
-				$res = $this->doSelect($crit);
+				$res = $this->select($crit);
+			}
+
+			$users = array();
+			if ($res)
+			{
+				foreach ($res as $key => $user)
+				{
+					if ($user->isScopeConfirmed())
+					{
+						$users[$key] = $user;
+					}
+				}
 			}
 			
-			return $res;
+			return $users;
 		}
 
-		public function findInConfig($details, $limit = 50, $offset = null)
+		public function findInConfig($details, $limit = 50)
 		{
 			$crit = $this->getCriteria();
 			switch ($details)
@@ -170,89 +194,48 @@
 					$crit->addWhere(self::ACTIVATED, false);
 					break;
 				case 'newusers':
-					$crit->addWhere(self::JOINED, NOW - 1814400, B2DBCriteria::DB_GREATER_THAN_EQUAL);
+					$crit->addWhere(self::JOINED, NOW - 1814400, Criteria::DB_GREATER_THAN_EQUAL);
 					break;
 				case '0-9':
-					$ctn = $crit->returnCriterion(self::UNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), B2DBCriteria::DB_IN);
-					$ctn->addOr(self::BUDDYNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), B2DBCriteria::DB_IN);
-					$ctn->addOr(self::REALNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), B2DBCriteria::DB_IN);
+					$ctn = $crit->returnCriterion(self::UNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), Criteria::DB_IN);
+					$ctn->addOr(self::BUDDYNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), Criteria::DB_IN);
+					$ctn->addOr(self::REALNAME, array('0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%'), Criteria::DB_IN);
 					$crit->addWhere($ctn);
 					break;
 				case 'all':
 					break;
 				default:
-					$details = (strlen($details) == 1) ? strtolower("$details%") : strtolower("%$details%");
-					$ctn = $crit->returnCriterion(self::UNAME, $details, B2DBCriteria::DB_LIKE);
-					$ctn->addOr(self::BUDDYNAME, $details, B2DBCriteria::DB_LIKE);
-					$ctn->addOr(self::REALNAME, $details, B2DBCriteria::DB_LIKE);
-					$ctn->addOr(self::EMAIL, $details, B2DBCriteria::DB_LIKE);
+					$details = (mb_strlen($details) == 1) ? mb_strtolower("$details%") : mb_strtolower("%$details%");
+					$ctn = $crit->returnCriterion(self::UNAME, $details, Criteria::DB_LIKE);
+					$ctn->addOr(self::BUDDYNAME, $details, Criteria::DB_LIKE);
+					$ctn->addOr(self::REALNAME, $details, Criteria::DB_LIKE);
+					$ctn->addOr(self::EMAIL, $details, Criteria::DB_LIKE);
 					$crit->addWhere($ctn);
 					break;
 			}
 			$crit->addWhere(self::DELETED, false);
-			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			if ($limit !== null)
-			{
-				$crit->setLimit($limit);
-			}
-			if ($offset !== null)
-			{
-				$crit->setOffset($offset);
-			}
 
 			$users = array();
 			$res = null;
 
 			if ($details != '' && $res = $this->doSelect($crit))
 			{
-				while ($row = $res->getNextRow())
+				while (($row = $res->getNextRow()) && count($users) < $limit)
 				{
-					$users[$row->get(self::ID)] = TBGContext::factory()->TBGUser($row->get(self::ID));
+					$user_id = (int) $row->get(self::ID);
+					$details = TBGUserScopesTable::getTable()->getUserDetailsByScope($user_id, TBGContext::getScope()->getID());
+					if (!$details) continue;
+					$users[$user_id] = TBGContext::factory()->TBGUser($user_id);
+					$users[$user_id]->setScopeConfirmed($details['confirmed']);
 				}
 			}
 
-			$num_results = (is_object($res)) ? $res->getNumberOfRows() : 0;
-
-			return array($users, $num_results);
+			return $users;
 		}
 
-		public function getNumberOfMembersByGroupID($group_id)
+		public function getAllUserIDs()
 		{
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::GROUP_ID, $group_id);
-			$crit->addWhere(self::DELETED, false);
-			$crit->addWhere(self::ENABLED, true);
-			$count = $this->doCount($crit);
-
-			return $count;
-		}
-
-		public function getUsersByGroupID($group_id)
-		{
-			$crit = $this->getCriteria();
-			$crit->addWhere(self::GROUP_ID, $group_id);
-			$crit->addWhere(self::DELETED, false);
-			$crit->addWhere(self::ENABLED, true);
-
-			return $this->doSelect($crit);
-		}
-
-		public function countUsers($scope = null)
-		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
-			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, $scope);
-			$crit->addWhere(self::DELETED, false);
-
-			return $this->doCount($crit);
-		}
-		
-		public function getAllUserIDs($scope = null)
-		{
-			$crit = $this->getCriteria();
-			
-			if ($scope !== null)
-				$crit->addWhere(self::SCOPE, $scope);
 			
 			$crit->addSelectionColumn(self::ID, 'uid');
 			$res = $this->doSelect($crit);

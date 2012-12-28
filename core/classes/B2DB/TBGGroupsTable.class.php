@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Groups table
 	 *
@@ -15,6 +19,9 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="groups")
+	 * @Entity(class="TBGGroup")
 	 */
 	class TBGGroupsTable extends TBGB2DBTable 
 	{
@@ -25,23 +32,13 @@
 		const NAME = 'groups.name';
 		const SCOPE = 'groups.scope';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGGroupsTable
-		 */
-		public static function getTable()
-		{
-			return B2DB::getTable('TBGGroupsTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
-			parent::_addVarchar(self::NAME, 50);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
+//		public function __construct()
+//		{
+//			parent::__construct(self::B2DBNAME, self::ID);
+//
+//			parent::_addVarchar(self::NAME, 50);
+//			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+//		}
 
 		public function getAll($scope = null)
 		{
@@ -58,7 +55,8 @@
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::NAME, $group_name);
-			
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+
 			return (bool) $this->doCount($crit);
 		}
 		

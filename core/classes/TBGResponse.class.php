@@ -22,7 +22,7 @@
 		const DECORATE_NONE = 0;
 		const DECORATE_HEADER = 1;
 		const DECORATE_FOOTER = 2;
-		const DECORATE_BOTH = 3;
+		const DECORATE_DEFAULT = 3;
 		const DECORATE_CUSTOM = 4;
 
 		/**
@@ -124,12 +124,9 @@
 
 		public function ajaxResponseText($code, $error)
 		{
-			return true;
-			$ob_status = ob_get_status();
-			if (!empty($ob_status) && $ob_status['status'] != PHP_OUTPUT_HANDLER_END)
-			{
-				ob_end_clean();
-			}
+			if (TBGContext::isDebugMode()) return true;
+
+			$this->cleanBuffer();
 			$this->setContentType('application/json');
 			$this->setHttpStatus($code);
 			$this->renderHeaders();
@@ -155,7 +152,7 @@
 					$this->setContentType('text/csv');
 					break;
 				default:
-					$this->setDecoration(self::DECORATE_BOTH, array('header' => THEBUGGENIE_CORE_PATH . 'templates/header.inc.php', 'footer' => THEBUGGENIE_CORE_PATH . 'templates/footer.inc.php'));
+					$this->setDecoration(self::DECORATE_DEFAULT);
 					break;
 			}
 
@@ -164,7 +161,7 @@
 		public function cleanBuffer()
 		{
 			$ob_status = ob_get_status();
-			if (!empty($ob_status) && $ob_status['status'] != PHP_OUTPUT_HANDLER_END)
+			if (!empty($ob_status) && ((isset($ob_status['status'])&& $ob_status['status'] != PHP_OUTPUT_HANDLER_END)|| (isset($ob_status['flags'])&&!($ob_status['flags'] & PHP_OUTPUT_HANDLER_END))))
 			{
 				ob_end_clean();
 			}
@@ -214,12 +211,17 @@
 		 * Add to the breadcrumb trail for the current page
 		 * 
 		 * @param string $breadcrumb 
-		 * @param string $url[optional]
+		 * @param string $url[optional] The menu item's url if any
+		 * @param array $subitems[optional] An array of submenu items to add
+		 * @param string $class[optional] An optional class
 		 */
 		public function addBreadcrumb($breadcrumb, $url = null, $subitems = null, $class = null)
 		{
 			if ($this->_breadcrumb === null)
+			{
 				$this->_breadcrumb = array();
+				TBGContext::populateBreadcrumbs();
+			}
 
 			$this->_breadcrumb[] = array('title' => $breadcrumb, 'url' => $url, 'subitems' => $subitems, 'class' => $class);
 		}
@@ -274,6 +276,7 @@
 			if (!is_array($this->_breadcrumb))
 			{
 				$this->_breadcrumb = array();
+				TBGContext::populateBreadcrumbs();
 			}
 			return $this->_breadcrumb;
 		}
@@ -292,20 +295,42 @@
 		 * Add a javascript
 		 *
 		 * @param string $javascript javascript name
+		 * @param bool $minify Run through minify/content server
+		 * @param bool $important Mark this script for being loaded before others
 		 */
-		public function addJavascript($javascript)
+		public function addJavascript($javascript, $minify = true, $important = false)
 		{
-			$this->_javascripts[$javascript] = $javascript;
+			if ($important)
+			{
+				$temp = array();
+				$temp[$javascript] = $minify;
+				$this->_javascripts = array_merge($temp, $this->_javascripts);
+			}
+			else
+			{
+				$this->_javascripts[$javascript] = $minify;
+			}
 		}
 		
 		/**
 		 * Add a stylesheet
 		 *
 		 * @param string $stylesheet stylesheet name
+		 * @param bool $minify Run through minify/content server
+		 * @param bool $important Mark this stylesheet for being loaded before others
 		 */
-		public function addStylesheet($stylesheet)
+		public function addStylesheet($stylesheet, $minify = true, $important = false)
 		{
-			$this->_stylesheets[$stylesheet] = $stylesheet;
+			if ($important)
+			{
+				$temp = array();
+				$temp[$stylesheet] = $minify;
+				$this->_stylesheets = array_merge($temp, $this->_stylesheets);
+			}
+			else
+			{
+				$this->_stylesheets[$stylesheet] = $minify;
+			}
 		}
 
 		/**
@@ -365,6 +390,8 @@
 		
 		/**
 		 * Get the HTTP status code
+         *
+         * @return int
 		 */
 		public function getHttpStatus()
 		{
@@ -378,7 +405,7 @@
 		 */
 		public function doDecorateHeader()
 		{
-			return ($this->_decoration == self::DECORATE_HEADER || $this->_decoration == self::DECORATE_BOTH || ($this->_decoration == self::DECORATE_CUSTOM && $this->_decor_header)) ? true : false;
+			return ($this->_decoration == self::DECORATE_HEADER || ($this->_decoration == self::DECORATE_CUSTOM && $this->_decor_header)) ? true : false;
 		}
 		
 		/**
@@ -387,7 +414,7 @@
 		 */
 		public function doDecorateFooter()
 		{
-			return ($this->_decoration == self::DECORATE_FOOTER || $this->_decoration == self::DECORATE_BOTH || ($this->_decoration == self::DECORATE_CUSTOM && $this->_decor_footer)) ? true : false;
+			return ($this->_decoration == self::DECORATE_FOOTER || ($this->_decoration == self::DECORATE_CUSTOM && $this->_decor_footer)) ? true : false;
 		}
 		
 		/**
@@ -407,12 +434,32 @@
 				if (array_key_exists('footer', $params)) $this->_decor_footer = $params['footer'];
 			}
 		}
-		
+
+        /**
+         * Get the current decoration mode
+         *
+         * @return int
+         */
+		public function getDecoration()
+		{
+			return $this->_decoration;
+		}
+
+        /**
+         * Get the current custom header decoration file location
+         *
+         * @return string
+         */
 		public function getHeaderDecoration()
 		{
 			return $this->_decor_header;
 		}
-		
+
+        /**
+         * Get the current custom footer decoration file location
+         *
+         * @return string
+         */
 		public function getFooterDecoration()
 		{
 			return $this->_decor_footer;
@@ -453,11 +500,19 @@
 		{
 			header("HTTP/1.0 ".$this->_http_status);
 			/* headers to stop caching in browsers and proxies */
-			header ("Expires: Mon, 26 Jul 1997 05:00:00 GMT"); // Date in the past
-			header ("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT"); // always modified
-			header ("Cache-Control: no-cache, must-revalidate"); // HTTP/1.1
-			header ("Pragma: no-cache"); // HTTP/1.0
-			header ("Content-Type: " . $this->_content_type . "; charset=" . TBGContext::getI18n()->getCharset());
+			header("Expires: Mon, 26 Jul 1997 05:00:00 GMT"); // Date in the past
+			header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT"); // always modified
+			header("Cache-Control: no-cache, must-revalidate"); // HTTP/1.1
+			header("Pragma: no-cache"); // HTTP/1.0
+			header("x-tbg-debugid: ".TBGContext::getDebugID());
+			if (TBGContext::isI18nInitialized())
+			{
+				header("Content-Type: " . $this->_content_type . "; charset=" . TBGContext::getI18n()->getCharset());
+			}
+			else
+			{
+				header("Content-Type: " . $this->_content_type . "; charset=utf-8");
+			}
 
 			foreach ($this->_headers as $header)
 			{
@@ -548,7 +603,7 @@
 					break;
 				case 'project_summary':
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_dashboard', array('project_key' => $project->getKey())), 'title' => $i18n->__('Dashboard'));
-					$links[] = array('url' => TBGContext::getRouting()->generate('project_scrum', array('project_key' => $project->getKey())), 'title' => $i18n->__('Sprint planning'));
+					$links[] = array('url' => TBGContext::getRouting()->generate('project_planning', array('project_key' => $project->getKey())), 'title' => $i18n->__('Planning'));
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_roadmap', array('project_key' => $project->getKey())), 'title' => $i18n->__('Roadmap'));
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_team', array('project_key' => $project->getKey())), 'title' => $i18n->__('Team overview'));
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_statistics', array('project_key' => $project->getKey())), 'title' => $i18n->__('Statistics'));
@@ -556,6 +611,8 @@
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_reportissue', array('project_key' => $project->getKey())), 'title' => $i18n->__('Report an issue'));
 					$links[] = array('url' => TBGContext::getRouting()->generate('project_issues', array('project_key' => $project->getKey())), 'title' => $i18n->__('Issues'));
 					$links = TBGEvent::createNew('core', 'breadcrumb_project_links', null, array(), $links)->trigger()->getReturnList();
+					$links[] = array('url' => TBGContext::getRouting()->generate('project_settings', array('project_key' => $project->getKey())), 'title' => $i18n->__('Settings'));
+					$links[] = array('url' => TBGContext::getRouting()->generate('project_release_center', array('project_key' => $project->getKey())), 'title' => $i18n->__('Release center'));
 					break;
 				case 'client_list':
 					foreach (TBGClient::getAll() as $client)
@@ -574,6 +631,11 @@
 			}
 
 			return $links;
+		}
+		
+		public function getAllHeaders()
+		{
+			return $this->_headers;
 		}
 
 	}

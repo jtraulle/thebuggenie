@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue affects build table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issueaffectsbuild")
 	 */
 	class TBGIssueAffectsBuildTable extends TBGB2DBTable 
 	{
@@ -28,26 +34,21 @@
 		const CONFIRMED = 'issueaffectsbuild.confirmed';
 		const STATUS = 'issueaffectsbuild.status';
 
-		/**
-		 * Return an instance of TBGIssueAffectsBuildTable
-		 * 
-		 * @return TBGIssueAffectsBuildTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGIssueAffectsBuildTable');
-		}
-		
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addBoolean(self::CONFIRMED);
-			parent::_addForeignKeyColumn(self::BUILD, B2DB::getTable('TBGBuildsTable'), TBGBuildsTable::ID);
+			parent::_addForeignKeyColumn(self::BUILD, Core::getTable('TBGBuildsTable'), TBGBuildsTable::ID);
 			parent::_addForeignKeyColumn(self::ISSUE, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 			parent::_addForeignKeyColumn(self::STATUS, TBGListTypesTable::getTable(), TBGListTypesTable::ID);
 		}
 		
+		protected function _setupIndexes()
+		{
+			$this->_addIndex('issue', self::ISSUE);
+		}
+
 		public function getByIssueID($issue_id)
 		{
 			$crit = $this->getCriteria();
@@ -129,7 +130,6 @@
 				$crit->addInsert(self::ISSUE, $issue_id);
 				$crit->addInsert(self::BUILD, $build_id);
 				$crit->addInsert(self::SCOPE, TBGContext::getScope()->getID());
-				$crit->addInsert(self::STATUS, 20);
 				$ret = $this->doInsert($crit);
 				return $ret->getInsertID();
 			}

@@ -3,12 +3,15 @@
 	<?php if ($show_title): ?>
 		<?php include_template('publish/header', array('article_name' => $article->getName(), 'article' => $article, 'show_actions' => $show_actions, 'mode' => $mode)); ?>
 	<?php endif; ?>
+	<?php if (!$embedded && $article->canDelete()): ?>
+		<?php echo javascript_link_tag(__('Delete this article'), array('class' => 'button button-red', 'style' => 'float: right;', 'onclick' => "TBG.Main.Helpers.Dialog.show('".__('Please confirm')."', '".__('Do you really want to delete this article?')."', {yes: {click: function() {TBG.Main.Helpers.ajax('".make_url('publish_article_delete', array('article_name' => $article->getName()))."', {method: 'post'}); TBG.Main.Helpers.Dialog.dismiss(); }}, no: {click: TBG.Main.Helpers.Dialog.dismiss}})")); ?>
+	<?php endif; ?>
 	<?php if ($show_details && $show_article): ?>
 		<div class="details">
 			<?php if (isset($redirected_from)): ?>
 				<div class="redirected_from">&rarr; <?php echo __('Redirected from %article_name%', array('%article_name%' => link_tag(make_url('publish_article_edit', array('article_name' => $redirected_from)), $redirected_from))); ?></div>
 			<?php endif; ?>
-			<?php echo __('Last updated at %time%, by %user%', array('%time%' => tbg_formatTime($article->getPostedDate(), 3), '%user%' => '<b>'.(($article->getAuthor() instanceof TBGIdentifiable) ? '<a href="javascript:void(0);" onclick="showFadedBackdrop(\'' . make_url('get_partial_for_backdrop', array('key' => 'usercard', 'user_id' => $article->getAuthor()->getID())) . '\');" class="faded_out">' . $article->getAuthor()->getName() . '</a>' : __('System')).'</b>')); ; ?>
+			<?php echo __('Last updated at %time%, by %user%', array('%time%' => tbg_formatTime($article->getPostedDate(), 3), '%user%' => '<b>'.(($article->getAuthor() instanceof TBGIdentifiable) ? '<a href="javascript:void(0);" onclick="TBG.Main.Helpers.Backdrop.show(\'' . make_url('get_partial_for_backdrop', array('key' => 'usercard', 'user_id' => $article->getAuthor()->getID())) . '\');" class="faded_out">' . $article->getAuthor()->getName() . '</a>' : __('System')).'</b>')); ; ?>
 		</div>
 	<?php endif; ?>
 	<?php if ($show_article): ?>

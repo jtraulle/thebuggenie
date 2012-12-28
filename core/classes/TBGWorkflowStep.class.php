@@ -15,23 +15,42 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGWorkflowStepsTable")
 	 */
-	class TBGWorkflowStep extends TBGIdentifiableClass
+	class TBGWorkflowStep extends TBGIdentifiableScopedClass
 	{
 
-		static protected $_b2dbtablename = 'TBGWorkflowStepsTable';
-		
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
 		/**
 		 * The workflow description
 		 *
 		 * @var string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_description = null;
 
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_editable = null;
 
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_closed = null;
 
+		/**
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGStatus")
+		 */
 		protected $_status_id = null;
 
 		protected $_incoming_transitions = null;
@@ -41,6 +60,15 @@
 		protected $_outgoing_transitions = null;
 
 		protected $_num_outgoing_transitions = null;
+
+		/**
+		 * The associated workflow object
+		 *
+		 * @var TBGWorkflow
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGWorkflow")
+		 */
+		protected $_workflow_id = null;
 
 		public static function loadFixtures(TBGScope $scope, TBGWorkflow $workflow)
 		{
@@ -79,13 +107,17 @@
 			
 		}
 
-		/**
-		 * The associated workflow object
-		 *
-		 * @var TBGWorkflow
-		 * @Class TBGWorkflow
-		 */
-		protected $_workflow_id = null;
+		public static function getAllByWorkflowSchemeID($scheme_id)
+		{
+			$ids = TBGWorkflowStepsTable::getTable()->getAllByWorkflowSchemeID($scheme_id);
+			$steps = array();
+			foreach ($ids as $step_id)
+			{
+				$steps[$step_id] = new TBGWorkflowStep((int) $step_id);
+			}
+
+			return $steps;
+		}
 
 		/**
 		 * Returns the workflows description
@@ -114,7 +146,7 @@
 		 */
 		public function getWorkflow()
 		{
-			return $this->_getPopulatedObjectFromProperty('_workflow_id');
+			return $this->_b2dbLazyload('_workflow_id');
 		}
 
 		public function setWorkflow(TBGWorkflow $workflow)
@@ -293,7 +325,7 @@
 			foreach ($this->getOutgoingTransitions() as $transition)
 			{
 				if ($transition->isAvailableForIssue($issue))
-					$return_array[] = $transition;
+					$return_array[$transition->getID()] = $transition;
 			}
 			
 			return $return_array;
@@ -324,4 +356,24 @@
 			return $new_step;
 		}
 		
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 	}

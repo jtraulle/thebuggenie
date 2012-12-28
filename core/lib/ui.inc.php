@@ -28,17 +28,17 @@
 		}
 		else
 		{
-			if ($module != 'core' && !file_exists(THEBUGGENIE_PATH . 'themes/' . TBGSettings::getThemeName() . "/{$module}/" . $image))
+			if ($module != 'core' && !file_exists(THEBUGGENIE_PATH . 'iconsets/' . TBGSettings::getIconsetName() . "/{$module}/" . $image))
 			{
-				$params['src'] = TBGContext::getTBGPath() . "themes/modules/{$module}/" . TBGSettings::getThemeName() . '/' . $image;
+				$params['src'] = TBGContext::getTBGPath() . "iconsets/" . TBGSettings::getIconsetName() . "/modules/{$module}/" . $image;
 			}
 			elseif ($module != 'core')
 			{
-				$params['src'] = TBGContext::getTBGPath() . 'themes/' . TBGSettings::getThemeName() . "/{$module}/" . $image;
+				$params['src'] = TBGContext::getTBGPath() . 'iconsets/' . TBGSettings::getIconsetName() . "/{$module}/" . $image;
 			}
 			else
 			{
-				$params['src'] = TBGContext::getTBGPath() . 'themes/' . TBGSettings::getThemeName() . '/' . $image;
+				$params['src'] = TBGContext::getTBGPath() . 'iconsets/' . TBGSettings::getIconsetName() . '/' . $image;
 			}
 		}
 		if (!$relative)
@@ -72,17 +72,17 @@
 		}
 		else
 		{
-			if ($module != 'core' && !file_exists(THEBUGGENIE_PATH . 'themes/' . TBGSettings::getThemeName() . "/{$module}/" . $image))
+			if ($module != 'core' && !file_exists(THEBUGGENIE_PATH . 'iconsets/' . TBGSettings::getIconsetName() . "/{$module}/" . $image))
 			{
-				$params['src'] = TBGContext::getTBGPath() . "themes/modules/{$module}/" . TBGSettings::getThemeName() . '/' . $image;
+				$params['src'] = TBGContext::getTBGPath() . "iconsets/" . TBGSettings::getIconsetName() . "/modules/{$module}/" . $image;
 			}
 			elseif ($module != 'core')
 			{
-				$params['src'] = TBGContext::getTBGPath() . 'themes/' . TBGSettings::getThemeName() . "/{$module}/" . $image;
+				$params['src'] = TBGContext::getTBGPath() . 'iconsets/' . TBGSettings::getIconsetName() . "/{$module}/" . $image;
 			}
 			else
 			{
-				$params['src'] = TBGContext::getTBGPath() . 'themes/' . TBGSettings::getThemeName() . '/' . $image;
+				$params['src'] = TBGContext::getTBGPath() . 'iconsets/' . TBGSettings::getIconsetName() . '/' . $image;
 			}
 		}
 		if (!$relative)
@@ -144,7 +144,7 @@
 	 */
 	function image_submit_tag($image, $params = array(), $notheme = false)
 	{
-		$params['src'] = (!$notheme) ? TBGContext::getTBGPath() . 'themes/' . TBGSettings::getThemeName() . '/' . $image : $image;
+		$params['src'] = (!$notheme) ? TBGContext::getTBGPath() . 'iconsets/' . TBGSettings::getIconsetName() . '/' . $image : $image;
 		return '<input type="image" ' . parseHTMLoptions($params) . ' />';
 	}
 	
@@ -225,3 +225,35 @@
 		}
 		return implode(' ', array_values($option_strings));
 	}
+
+    /**
+     * Easy way to highlight stuff. Behaves just like highlight_string
+     *
+     * @param string The code to highlight
+     * @param string The language to highlight the code in
+     * @param string The path to the language files. You can leave this blank if you need
+     *               as from version 1.0.7 the path should be automatically detected
+     * @param boolean Whether to return the result or to echo
+     * @return string The code highlighted (if $return is true)
+     * @since 1.0.2
+     */
+    function geshi_highlight($string, $language, $path = null, $return = false)
+	{
+		defined('GESHI_ROOT') || define('GESHI_ROOT', THEBUGGENIE_CORE_PATH . 'geshi' . DS);
+
+        $geshi = new GeSHi($string, $language, $path);
+        $geshi->set_header_type(GESHI_HEADER_NONE);
+
+        if ($return)
+		{
+            return '<code>' . $geshi->parse_code() . '</code>';
+        }
+
+        echo '<code>' . $geshi->parse_code() . '</code>';
+
+        if ($geshi->error())
+		{
+            return false;
+        }
+        return true;
+    }

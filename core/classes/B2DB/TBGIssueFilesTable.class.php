@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issues <-> Files table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issuefiles")
 	 */
 	class TBGIssueFilesTable extends TBGB2DBTable
 	{
@@ -28,24 +34,19 @@
 		const FILE_ID = 'issuefiles.file_id';
 		const ISSUE_ID = 'issuefiles.issue_id';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGIssueFilesTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGIssueFilesTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 			parent::_addForeignKeyColumn(self::ISSUE_ID, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
 			parent::_addForeignKeyColumn(self::FILE_ID, TBGFilesTable::getTable(), TBGFilesTable::ID);
 			parent::_addInteger(self::ATTACHED_AT, 10);
+		}
+
+		protected function _setupIndexes()
+		{
+			$this->_addIndex('issueid', self::ISSUE_ID);
 		}
 
 		public function addByIssueIDandFileID($issue_id, $file_id)
@@ -91,6 +92,23 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::ISSUE_ID, $issue_id);
 			return $this->doCount($crit);
+		}
+
+		public function getIssuesByFileID($file_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::FILE_ID, $file_id);
+
+			$issue_ids = array();
+			if ($res = $this->doSelect($crit))
+			{
+				while ($row = $res->getNextRow())
+				{
+					$i_id = $row->get(self::ISSUE_ID);
+					$issue_ids[$i_id] = $i_id;
+				}
+			}
+			return $issue_ids;
 		}
 
 		public function removeByIssueIDandFileID($issue_id, $file_id)

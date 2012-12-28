@@ -15,11 +15,11 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGListTypesTable")
 	 */
 	abstract class TBGDatatype extends TBGDatatypeBase
 	{
-		static protected $_b2dbtablename = 'TBGListTypesTable';
-
 		/**
 		 * Item type status
 		 *
@@ -63,10 +63,10 @@
 		const CATEGORY = 'category';
 		
 		/**
-		 * Item type user state 
+		 * Item type project role
 		 *
 		 */
-		const USERSTATE = 'userstate';
+		const ROLE = 'role';
 		
 		/**
 		 * Item type project role
@@ -82,24 +82,17 @@
 			TBGResolution::loadFixtures($scope);
 			TBGSeverity::loadFixtures($scope);
 			TBGStatus::loadFixtures($scope);
+<<<<<<< HEAD
 			TBGProjectRole::loadFixtures($scope);
+=======
+			TBGRole::loadFixtures($scope);
+			foreach (self::getTypes() as $type => $class)
+			{
+				TBGContext::setPermission('set_datatype_'.$type, 0, 'core', 0, 0, 0, true, $scope->getID());
+			}
+>>>>>>> upstream/master
 		}
 		
-		/**
-		 * Create a new field option and return the row
-		 *
-		 * @param string $name
-		 * @param string $itemtype
-		 * @param mixed $itemdata
-		 *
-		 * @return B2DBResultset
-		 */
-		protected static function _createNew($name, $itemtype, $itemdata = null)
-		{
-			$res = TBGListTypesTable::getTable()->createNew($name, $itemtype, $itemdata);
-			return $res;
-		}
-
 		public static function getTypes()
 		{
 			$types = array();
@@ -122,6 +115,22 @@
 		public function canBeDeleted()
 		{
 			return true;
+		}
+
+		public static function has($item_id)
+		{
+			$items = static::getAll();
+			return array_key_exists($item_id, $items);
+		}
+
+		/**
+		 * Returns all severities available
+		 *
+		 * @return array
+		 */
+		public static function getAll()
+		{
+			return TBGListTypesTable::getTable()->getAllByItemType(static::ITEMTYPE);
 		}
 
 	}

@@ -4,7 +4,7 @@
 	$tbg_response->addBreadcrumb(__('Frontpage'), make_url('home'), tbg_get_breadcrumblinks('main_links'));
 
 ?>
-<?php if ($show_project_config_link): ?>
+<?php if ($show_project_config_link && $show_project_list): ?>
 	<?php if ($project_count == 1): ?>
 		<?php include_component('main/hideableInfoBox', array('key' => 'index_single_project_mode', 'title' => __('Only using The Bug Genie to track issues for one project?'), 'content' => __("It looks likes you're only using The Bug Genie to track issues for one project. If you don't want to use this homepage, you can set The Bug Genie to <i>single project tracker mode</i>, which will automatically forward the frontpage to the project overview page.<br><br><i>Single project tracker mode</i> can be enabled from %configure_settings%.", array('%configure_settings%' => link_tag(make_url('configure_settings'), '<b>' . __('Configure &ndash;&gt; Settings') . '</b>'))))); ?>
 	<?php elseif ($project_count == 0): ?>
@@ -22,9 +22,12 @@
 			<?php if ($show_project_list): ?>
 				<div class="project_overview">
 					<div class="header">
-						<?php if ($show_project_config_link): ?>
-							<?php echo link_tag(make_url('configure_projects'), image_tag('cfg_icon_projectheader.png', array('style' => 'float: left; margin-right: 5px;'))); ?>
-						<?php endif; ?>
+						<div class="button-group">
+							<?php if ($show_project_config_link): ?>
+								<?php echo link_tag(make_url('configure_projects'), __('Manage projects'), array('class' => 'button button-silver')); ?>
+							<?php endif; ?>
+							<a class="button button-silver" href="javascript:void(0);" onclick="TBG.Main.Helpers.Backdrop.show('<?php echo make_url('get_partial_for_backdrop', array('key' => 'archived_projects')); ?>');"><?php echo __('Show archived projects'); ?></a>
+						</div>
 						<?php echo __('Projects'); ?>
 					</div>
 					<?php if ($project_count > 0): ?>
@@ -35,7 +38,7 @@
 						</ul>
 					<?php else: ?>
 						<p class="content">
-							<?php echo __('There are no projects'); ?>.
+							<?php echo __('There are no top-level projects'); ?>.
 							<?php if ($show_project_config_link): ?>
 								<?php echo link_tag(make_url('configure_projects'), __('Go to project management').' &gt;&gt;'); ?>
 							<?php else: ?>

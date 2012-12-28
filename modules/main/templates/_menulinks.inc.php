@@ -1,15 +1,17 @@
-<div class="rounded_box borderless lightgrey menu_links" id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_container" style="margin: 0 0 5px 5px; padding: 3px;">
+<div class="container_div menu_links" id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_container" style="margin: 0 0 5px 5px;">
 	<div class="header">
-		<?php if ($tbg_user->canEditMainMenu()): ?>
-			<?php echo javascript_link_tag(image_tag('action_add_link.png'), array('style' => 'float: right;', 'class' => 'image', 'onclick' => "$('attach_link_{$target_type}_{$target_id}').toggle();", 'title' => __('Add an item to the menu'))); ?>
-			<?php echo javascript_link_tag(image_tag('icon_edit.png'), array('style' => 'float: right;', 'class' => 'image', 'onclick' => "$('{$target_type}_{$target_id}_container').toggleClassName('menu_editing');", 'title' => __('Toggle menu edit mode'))); ?>
+		<?php if ($tbg_user->canEditMainMenu() && ((TBGContext::isProjectContext() && !TBGContext::getCurrentProject()->isArchived()) || !TBGContext::isProjectContext())): ?>
+			<div class="button-group" style="float: right; margin: -3px -6px 0 0;">
+				<?php echo javascript_link_tag(image_tag('icon_edit.png'), array('class' => 'button button-silver button-icon', 'onclick' => "TBG.Main.Menu.toggleEditMode('{$target_type}', '{$target_id}', '".make_url('save_menu_order', array('target_type' => $target_type, 'target_id' => $target_id))."');", 'title' => __('Toggle menu edit mode'))); ?>
+				<?php echo javascript_link_tag(image_tag('action_add_link.png'), array('class' => 'button button-silver button-icon', 'onclick' => "$('attach_link_{$target_type}_{$target_id}').toggle();", 'title' => __('Add an item to the menu'))); ?>
+			</div>
 		<?php endif; ?>
 		<?php echo $title; ?>
 	</div>
-	<?php if ($tbg_user->canEditMainMenu()): ?>
+	<?php if ($tbg_user->canEditMainMenu() && ((TBGContext::isProjectContext() && !TBGContext::getCurrentProject()->isArchived()) || !TBGContext::isProjectContext())): ?>
 		<div class="rounded_box lightgrey shadowed" id="attach_link_<?php echo $target_type; ?>_<?php echo $target_id; ?>" style="position: absolute; width: 300px; z-index: 10001; margin: 5px 0 5px 5px; display: none">
 			<div class="header_div" style="margin: 0 0 5px 0;"><?php echo __('Add a link'); ?>:</div>
-			<form action="<?php echo make_url('attach_link', array('target_type' => $target_type, 'target_id' => $target_id)); ?>" method="post" onsubmit="addLink('<?php echo make_url('attach_link', array('target_type' => $target_type, 'target_id' => $target_id)); ?>', '<?php echo $target_type; ?>', '<?php echo $target_id; ?>');return false;" id="attach_link_<?php echo $target_type; ?>_<?php echo $target_id; ?>_form">
+			<form action="<?php echo make_url('attach_link', array('target_type' => $target_type, 'target_id' => $target_id)); ?>" method="post" onsubmit="TBG.Main.Link.add('<?php echo make_url('attach_link', array('target_type' => $target_type, 'target_id' => $target_id)); ?>', '<?php echo $target_type; ?>', '<?php echo $target_id; ?>');return false;" id="attach_link_<?php echo $target_type; ?>_<?php echo $target_id; ?>_form">
 				<dl style="margin: 0;">
 					<dt style="width: 80px; padding-top: 3px;"><label for="attach_link_<?php echo $target_type; ?>_<?php echo $target_id; ?>_url"><?php echo ($target_type == 'wiki') ? __('Article name') : __('URL'); ?>:</label></dt>
 					<dd style="margin-bottom: 0px;"><input type="text" name="link_url" id="attach_link_<?php echo $target_type; ?>_<?php echo $target_id; ?>_url" style="width: 95%;"></dd>
@@ -31,13 +33,12 @@
 		</div>
 	<?php endif; ?>
 	<div class="content">
-		<table style="table-layout: fixed; width: 100%;" cellpadding=0 cellspacing=0>
-			<tbody id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_links">
-				<?php foreach ($links as $link_id => $link): ?>
-					<?php include_template('main/menulink', array('link_id' => $link_id, 'link' => $link)); ?>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
+		<ul class="simple_list" id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_links">
+			<?php foreach ($links as $link): ?>
+				<?php include_template('main/menulink', array('link_id' => $link['id'], 'link' => $link)); ?>
+			<?php endforeach; ?>
+		</ul>
 		<div style="padding-left: 5px;<?php if (count($links) > 0): ?> display: none;<?php endif; ?>" class="no_items" id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_no_links"><?php echo __('There are no links in this menu'); ?></div>
+		<div style="padding-left: 5px; text-align: center; display: none;" id="<?php echo $target_type; ?>_<?php echo $target_id; ?>_indicator"><?php echo image_tag('spinning_16.gif'); ?></div>
 	</div>
 </div>

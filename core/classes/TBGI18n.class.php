@@ -19,7 +19,7 @@
 	class TBGI18n
 	{
 
-		protected $_strings = array();
+		protected $_strings = null;
 		
 		protected $_missing_strings = array();
 		
@@ -62,12 +62,14 @@
 				TBGLogging::log("Initiating with file '{$filename}", 'i18n');
 				include $filename;
 			}
-			$this->loadStrings();
-			foreach (TBGContext::getModules() as $module_name => $module)
+			if ($this->_strings === null)
 			{
-				$this->loadStrings($module_name);
+				$this->loadStrings();
+				foreach (TBGContext::getModules() as $module_name => $module)
+				{
+					$this->loadStrings($module_name);
+				}
 			}
-			
 		}
 		
 		public function setLanguage($language)
@@ -90,12 +92,12 @@
 			$strings = array();
 			foreach ($this->getMissingStrings() as $string => $truth)
 			{
-				if (strpos($string, '"') !== false && strpos($string, "'") !== false)
+				if (mb_strpos($string, '"') !== false && mb_strpos($string, "'") !== false)
 				{
 					$string = str_replace('"', '\"', $string);
 					$strings[] = '$strings["'.$string.'"] = "'.$string."\";";
 				}
-				elseif (strpos($string, "'") !== false)
+				elseif (mb_strpos($string, "'") !== false)
 				{
 					$strings[] = '$strings["'.$string.'"] = "'.$string."\";";
 				}
@@ -117,36 +119,6 @@
 			return $this->_language;
 		}
 		
-		public function loadHelpTopic($topic, $module = '')
-		{
-			if ($module == '')
-			{
-				if (TBGSettings::get($topic, 'help'))
-				{
-					return TBGSettings::get($topic, 'help');
-				}
-				$filename = THEBUGGENIE_PATH . 'i18n/' . $this->getCurrentLanguage() . "/help/$topic.inc.php";
-				if (file_exists($filename))
-				{
-					return file_get_contents($filename);
-				}
-			}
-			else
-			{
-				$filename = THEBUGGENIE_PATH . 'i18n/' . $this->getCurrentLanguage() . "/help/$module/$topic.inc.php";
-				if (file_exists($filename))
-				{
-					return file_get_contents($filename);
-				}
-				$filename = THEBUGGENIE_MODULES_PATH . $module . DS . 'help' . DS . "{$topic}.inc.php";
-				if (file_exists($filename))
-				{
-					return file_get_contents($filename);
-				}
-			}
-			return false;
-		}
-		
 		public function getCharset()
 		{
 			if (TBGContext::isInstallmode()) return $this->_charset;
@@ -165,42 +137,30 @@
 		
 		protected function loadStrings($module = null)
 		{
-			$strings_key = ($module !== null) ? 'i18n_strings' : "i18n_strings_{$module}";
-			if (!$strings = TBGCache::get($strings_key))
+			if ($this->_strings === null) $this->_strings = array();
+			$filename = '';
+			$strings = array();
+			if ($module !== null)
 			{
-				$filename = '';
-				if ($module !== null)
-				{
-					if (file_exists(THEBUGGENIE_PATH . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php"))
-					{
-						$filename = THEBUGGENIE_PATH . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php";
-					}
-					else
-					{
-						$filename = THEBUGGENIE_MODULES_PATH . $module . DS . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php";
-					}
-				}
+				if (file_exists(THEBUGGENIE_PATH . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php"))
+					$filename = THEBUGGENIE_PATH . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php";
 				else
-				{
-					$filename = $this->getStringsFilename();
-				}
-
-				if (file_exists($filename))
-				{
-					TBGLogging::log("Loading strings from file '{$filename}", 'i18n');
-					$strings = array();
-					require $filename;
-					TBGCache::add($strings_key, $strings);
-				}
-				else
-				{
-					$message = 'Could not find language file ' . $filename;
-					TBGLogging::log($message, 'i18n', TBGLogging::LEVEL_NOTICE);
-				}
+					$filename = THEBUGGENIE_MODULES_PATH . $module . DS . 'i18n' . DS . $this->_language . DS . "{$module}.inc.php";
 			}
 			else
 			{
-				TBGLogging::log('Using cached strings', 'i18n');
+				$filename = $this->getStringsFilename();
+			}
+
+			if (file_exists($filename))
+			{
+				TBGLogging::log("Loading strings from file '{$filename}", 'i18n');
+				require $filename;
+			}
+			else
+			{
+				$message = 'Could not find language file ' . $filename;
+				TBGLogging::log($message, 'i18n', TBGLogging::LEVEL_NOTICE);
 			}
 			$this->addStrings($strings);
 		}
@@ -227,7 +187,7 @@
 			$cp_handle = opendir(THEBUGGENIE_PATH . 'i18n');
 			while ($classfile = readdir($cp_handle))
 			{
-				if (strstr($classfile, '.') == '' && file_exists(THEBUGGENIE_PATH . 'i18n/' . $classfile . '/language')) 
+				if (mb_strstr($classfile, '.') == '' && file_exists(THEBUGGENIE_PATH . 'i18n/' . $classfile . '/language')) 
 				{ 
 					$retarr[$classfile] = file_get_contents(THEBUGGENIE_PATH . 'i18n/' . $classfile . '/language');
 				}
@@ -238,7 +198,7 @@
 
 		public function hasTranslatedTemplate($template, $is_component = false)
 		{
-			if (strpos($template, '/'))
+			if (mb_strpos($template, '/'))
 			{
 				$templateinfo = explode('/', $template);
 				$module = $templateinfo[0];

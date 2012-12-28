@@ -27,6 +27,7 @@
 		const CONFIGURATION_SECTION_UPLOADS = 3;
 		const CONFIGURATION_SECTION_ISSUEFIELDS = 4;
 		const CONFIGURATION_SECTION_PERMISSIONS = 5;
+		const CONFIGURATION_SECTION_ROLES = 7;
 		const CONFIGURATION_SECTION_ISSUETYPES = 6;
 		const CONFIGURATION_SECTION_PROJECTS = 10;
 		const CONFIGURATION_SECTION_SETTINGS = 12;
@@ -35,35 +36,38 @@
 		const CONFIGURATION_SECTION_IMPORT = 16;
 		const CONFIGURATION_SECTION_AUTHENTICATION = 17;
 
-		const APPEARANCE_HEADER_USE_THEME = 0;
+		const APPEARANCE_HEADER_THEME = 0;
 		const APPEARANCE_HEADER_CUSTOM = 1;
-		const APPEARANCE_HEADER_URL = 2;
 
-		const FAVICON_DEFAULT = 0;
-		const FAVICON_PUBLIC = 1;
-		const FAVICON_CUSTOM_URL = 2;
+		const APPEARANCE_FAVICON_THEME = 0;
+		const APPEARANCE_FAVICON_CUSTOM = 1;
 
 		const SYNTAX_HIHGLIGHTING_FANCY_NUMBERS = 1;
 		const SYNTAX_HIHGLIGHTING_NORMAL_NUMBERS = 2;
 		const SYNTAX_HIHGLIGHTING_NO_NUMBERS = 3;
 
 		const INFOBOX_PREFIX = 'hide_infobox_';
+		const TOGGLE_PREFIX = 'toggle_';
 
 		const SETTING_ADMIN_GROUP = 'admingroup';
 		const SETTING_ALLOW_REGISTRATION = 'allowreg';
+		const SETTING_ALLOW_OPENID = 'allowopenid';
 		const SETTING_ALLOW_USER_THEMES = 'userthemes';
 		const SETTING_AWAYSTATE = 'awaystate';
 		const SETTING_DEFAULT_CHARSET = 'charset';
 		const SETTING_DEFAULT_LANGUAGE = 'language';
 		const SETTING_DEFAULT_USER_IS_GUEST = 'defaultisguest';
 		const SETTING_DEFAULT_USER_ID = 'defaultuserid';
+		const SETTING_DEFAULT_WORKFLOW = 'defaultworkflow';
+		const SETTING_DEFAULT_WORKFLOWSCHEME = 'defaultworkflowscheme';
+		const SETTING_DEFAULT_ISSUETYPESCHEME = 'defaultissuetypescheme';
 		const SETTING_ENABLE_UPLOADS = 'enable_uploads';
 		const SETTING_ENABLE_GRAVATARS = 'enable_gravatars';
 		const SETTING_FAVICON_TYPE = 'icon_fav';
-		const SETTING_FAVICON_URL = 'icon_fav_url';
+		const SETTING_FAVICON_ID = 'icon_fav_id';
 		const SETTING_GUEST_GROUP = 'guestgroup';
 		const SETTING_HEADER_ICON_TYPE = 'icon_header';
-		const SETTING_HEADER_ICON_URL = 'icon_header_url';
+		const SETTING_HEADER_ICON_ID = 'icon_header_id';
 		const SETTING_HEADER_LINK = 'header_link';
 		const SETTING_IS_PERMISSIVE_MODE = 'permissive';
 		const SETTING_IS_SINGLE_PROJECT_TRACKER = 'singleprojecttracker';
@@ -82,6 +86,7 @@
 		const SETTING_SYNTAX_HIGHLIGHT_DEFAULT_NUMBERING = 'highlight_default_numbering';
 		const SETTING_SYNTAX_HIGHLIGHT_DEFAULT_INTERVAL = 'highlight_default_interval';
 		const SETTING_TBG_NAME = 'b2_name';
+		const SETTING_TBG_NAME_HTML = 'tbg_header_name_html';
 		const SETTING_TBG_TAGLINE = 'b2_tagline';
 		const SETTING_THEME_NAME = 'theme_name';
 		const SETTING_UPLOAD_EXTENSIONS_LIST = 'upload_extensions_list';
@@ -91,16 +96,24 @@
 		const SETTING_UPLOAD_STORAGE = 'upload_storage';
 		const SETTING_USER_GROUP = 'defaultgroup';
 		const SETTING_USER_TIMEZONE = 'timezone';
+		const SETTING_USER_KEYBOARD_NAVIGATION = 'keyboard_navigation';
 		const SETTING_USER_LANGUAGE = 'language';
 		const SETTING_AUTH_BACKEND = 'auth_backend';
+		const SETTING_MAINTENANCE_MODE = 'offline';
+		const SETTING_MAINTENANCE_MESSAGE = 'offline_msg';
+		const SETTING_ICONSET = 'iconset';
 
-		static protected $_ver_mj = 3;
-		static protected $_ver_mn = 1;
-		static protected $_ver_rev = 3;
-		static protected $_ver_name = "Triple Reyo";
-		static protected $_defaultscope = null;
-		static protected $_settings = null;
-		static protected $_loadedsettings = array();
+		protected static $_ver_mj = 3;
+		protected static $_ver_mn = 3;
+		protected static $_ver_rev = '-dev';
+		protected static $_ver_name = "Fearless Opposum";
+		protected static $_defaultscope = null;
+		protected static $_settings = null;
+		protected static $_loadedsettings = array();
+
+		protected static $_core_workflow = null;
+		protected static $_core_workflowscheme = null;
+		protected static $_core_issuetypescheme = null;
 	
 		public static function forceSettingsReload()
 		{
@@ -116,36 +129,28 @@
 				if (self::$_settings === null)
 					self::$_settings = array();
 				
-				if (!TBGContext::isInstallmode() && $uid == 0 && self::$_settings = TBGCache::get(TBGCache::KEY_SETTINGS))
+				TBGLogging::log('Settings not cached or install mode enabled. Retrieving from database');
+				if ($res = \b2db\Core::getTable('TBGSettingsTable')->getSettingsForScope(TBGContext::getScope()->getID(), $uid))
 				{
-					TBGLogging::log('Using cached settings');
+					$cc = 0;
+					while ($row = $res->getNextRow())
+					{
+						$cc++;
+						self::$_settings[$row->get(TBGSettingsTable::MODULE)][$row->get(TBGSettingsTable::NAME)][$row->get(TBGSettingsTable::UID)] = $row->get(TBGSettingsTable::VALUE);
+					}
+					if ($cc == 0 && !TBGContext::isInstallmode() && $uid == 0)
+					{
+						TBGLogging::log('There were no settings stored in the database!', 'main', TBGLogging::LEVEL_FATAL);
+						throw new TBGSettingsException('Could not retrieve settings from database (no settings stored)');
+					}
 				}
-				else
+				elseif (!TBGContext::isInstallmode() && $uid == 0)
 				{
-					TBGLogging::log('Settings not cached or install mode enabled. Retrieving from database');
-					if ($res = B2DB::getTable('TBGSettingsTable')->getSettingsForScope(TBGContext::getScope()->getID(), $uid))
-					{
-						$cc = 0;
-						while ($row = $res->getNextRow())
-						{
-							$cc++;
-							self::$_settings[$row->get(TBGSettingsTable::MODULE)][$row->get(TBGSettingsTable::NAME)][$row->get(TBGSettingsTable::UID)] = $row->get(TBGSettingsTable::VALUE);
-						}
-						if ($cc == 0 && !TBGContext::isInstallmode() && $uid == 0)
-						{
-							TBGLogging::log('There were no settings stored in the database!', 'main', TBGLogging::LEVEL_FATAL);
-							throw new TBGSettingsException('Could not retrieve settings from database (no settings stored)');
-						}
-					}
-					elseif (!TBGContext::isInstallmode() && $uid == 0)
-					{
-						TBGLogging::log('Settings could not be retrieved from the database!', 'main', TBGLogging::LEVEL_FATAL);
-						throw new TBGSettingsException('Could not retrieve settings from database');
-					}
-					self::$_loadedsettings[$uid] = true;
-					TBGLogging::log('Retrieved');
-					TBGCache::add(TBGCache::KEY_SETTINGS, self::$_settings);
+					TBGLogging::log('Settings could not be retrieved from the database!', 'main', TBGLogging::LEVEL_FATAL);
+					throw new TBGSettingsException('Could not retrieve settings from database');
 				}
+				self::$_loadedsettings[$uid] = true;
+				TBGLogging::log('Retrieved');
 			}
 			
 			TBGLogging::log("...done");
@@ -177,13 +182,12 @@
 				}
 			}
 
-			B2DB::getTable('TBGSettingsTable')->saveSetting($name, $module, $value, $uid, $scope);
+			\b2db\Core::getTable('TBGSettingsTable')->saveSetting($name, $module, $value, $uid, $scope);
 			
 			if ($scope != 0 && ((!TBGContext::getScope() instanceof TBGScope) || $scope == TBGContext::getScope()->getID()))
 			{
 				self::$_settings[$module][$name][$uid] = $value;
 			}
-			TBGCache::delete('settings');
 		}
 		
 		public static function set($name, $value, $uid = 0, $module = 'core')
@@ -269,13 +273,11 @@
 		 *
 		 * @return TBGScope
 		 */
-		public static function getDefaultScope()
+		public static function getDefaultScopeID()
 		{
-			throw new Exception("This function is deprecated. Default scope is always 1");
 			if (self::$_defaultscope === null)
 			{
-				$row = B2DB::getTable('TBGSettingsTable')->getDefaultScope();
-				self::$_defaultscope = TBGContext::factory()->TBGScope($row->get(TBGSettingsTable::VALUE));
+				self::$_defaultscope = TBGScopeHostnamesTable::getTable()->getScopeIDForHostname('*');
 			}
 			return self::$_defaultscope;
 		}
@@ -285,28 +287,28 @@
 			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
 			$uid = ($uid === null) ? TBGContext::getUser()->getID() : $uid;
 
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addWhere(TBGSettingsTable::NAME, $name);
 			$crit->addWhere(TBGSettingsTable::MODULE, $module);
 			$crit->addWhere(TBGSettingsTable::SCOPE, $scope);
 			$crit->addWhere(TBGSettingsTable::UID, $uid);
 			
-			B2DB::getTable('TBGSettingsTable')->doDelete($crit);
+			\b2db\Core::getTable('TBGSettingsTable')->doDelete($crit);
 			unset(self::$_settings[$name][$uid]);
 		}
 	
 		private static function _loadSetting($name, $module = 'core', $scope = 0)
 		{
-			$crit = new B2DBCriteria();
+			$crit = new \b2db\Criteria();
 			$crit->addWhere(TBGSettingsTable::NAME, $name);
 			$crit->addWhere(TBGSettingsTable::MODULE, $module);
 			if ($scope == 0)
 			{
-				throw new Exception('BUGS has not been correctly installed. Please check that the default scope exists');
+				throw new Exception('The Bug Genie has not been correctly installed. Please check that the default scope exists');
 			}
 			$crit->addWhere(TBGSettingsTable::SCOPE, $scope);
-			$res = B2DB::getTable('TBGSettingsTable')->doSelect($crit);
-			if ($res->count() > 0)
+			$res = \b2db\Core::getTable('TBGSettingsTable')->doSelect($crit);
+			if ($res)
 			{
 				$retarr = array();
 				while ($row = $res->getNextRow())
@@ -336,6 +338,21 @@
 			return (bool) self::get(self::SETTING_ALLOW_REGISTRATION);
 		}
 		
+		public static function getOpenIDStatus()
+		{
+			$setting = self::get(self::SETTING_ALLOW_OPENID);
+			return ($setting === null) ? 'all' : $setting;
+		}
+		
+		public static function isOpenIDavailable()
+		{
+			if (TBGSettings::isUsingExternalAuthenticationBackend())
+			{
+				return false; // No openID when using external auth
+			}
+			return (bool) (self::getOpenIDStatus() != 'none');
+		}
+		
 		public static function isGravatarsEnabled()
 		{
 			return (bool) self::get(self::SETTING_ENABLE_GRAVATARS);
@@ -345,15 +362,31 @@
 		{
 			return self::get(self::SETTING_DEFAULT_LANGUAGE);
 		}
+
+		public static function getHTMLLanguage()
+		{
+			$lang = explode('_', self::getLanguage());
+			return $lang[0];
+		}
 		
 		public static function getCharset()
 		{
 			return self::get(self::SETTING_DEFAULT_CHARSET);
 		}
 		
+		public static function getHeaderIconID()
+		{
+			return self::get(self::SETTING_HEADER_ICON_ID);
+		}
+		
+		public static function getFaviconID()
+		{
+			return self::get(self::SETTING_FAVICON_ID);
+		}
+		
 		public static function getHeaderIconURL()
 		{
-			return self::get(self::SETTING_HEADER_ICON_URL);
+			return (self::isUsingCustomHeaderIcon()) ? TBGContext::getRouting()->generate('showfile', array('id' => self::getHeaderIconID())) : 'logo_24.png';
 		}
 		
 		public static function getHeaderLink()
@@ -363,12 +396,14 @@
 		
 		public static function getFaviconURL()
 		{
-			return self::get(self::SETTING_FAVICON_URL);
+			return (self::isUsingCustomFavicon()) ? TBGContext::getRouting()->generate('showfile', array('id' => self::getFaviconID())) : 'favicon.png';
 		}
 		
 		public static function getTBGname()
 		{
-			return self::get(self::SETTING_TBG_NAME);
+			$name = self::get(self::SETTING_TBG_NAME);
+			if (!self::isHeaderHtmlFormattingAllowed()) $name = htmlspecialchars($name, ENT_COMPAT, TBGContext::getI18n()->getCharset());
+			return $name;
 		}
 	
 		public static function getTBGtagline()
@@ -381,6 +416,11 @@
 			return (bool) self::get(self::SETTING_SHOW_PROJECTS_OVERVIEW);
 		}
 
+		public static function isHeaderHtmlFormattingAllowed()
+		{
+			return (bool) self::get(self::SETTING_TBG_NAME_HTML);
+		}
+
 		public static function isSingleProjectTracker()
 		{
 			return (bool) self::get(self::SETTING_IS_SINGLE_PROJECT_TRACKER);
@@ -391,7 +431,7 @@
 			return self::get(self::SETTING_HEADER_ICON_TYPE);
 		}
 		
-		public static function getFaviconType()
+		public static function isUsingCustomFavicon()
 		{
 			return self::get(self::SETTING_FAVICON_TYPE);
 		}
@@ -399,6 +439,11 @@
 		public static function getThemeName()
 		{
 			return self::get(self::SETTING_THEME_NAME);
+		}
+	
+		public static function getIconsetName()
+		{
+			return self::get(self::SETTING_ICONSET);
 		}
 		
 		public static function isUserThemesEnabled()
@@ -429,6 +474,23 @@
 		public static function getDefaultUserID()
 		{
 			return self::get(self::SETTING_DEFAULT_USER_ID);
+		}
+
+		/**
+		 * Return the default user
+		 *
+		 * @return TBGUser
+		 */
+		public static function getDefaultUser()
+		{
+			try
+			{
+				return TBGContext::factory()->TBGUser((int) self::get(self::SETTING_DEFAULT_USER_ID));
+			}
+			catch (Exception $e)
+			{
+				return null;
+			}
 		}
 		
 		public static function allowRegistration()
@@ -473,6 +535,25 @@
 			return self::get(self::SETTING_RETURN_FROM_LOGOUT);
 		}
 		
+		public static function isMaintenanceModeEnabled()
+		{
+			return (bool)self::get(self::SETTING_MAINTENANCE_MODE);
+		}
+		
+		public static function hasMaintenanceMessage()
+		{
+			if (self::get(self::SETTING_MAINTENANCE_MESSAGE) == '')
+			{
+				return false;
+			}
+			return true;
+		}
+		
+		public static function getMaintenanceMessage()
+		{
+			return self::get(self::SETTING_MAINTENANCE_MESSAGE);
+		}
+		
 		public static function getOnlineState()
 		{
 			try
@@ -499,7 +580,7 @@
 		
 		public static function getPasswordSalt()
 		{
-			$salt = self::get(self::SETTING_SALT);
+			$salt = self::get(self::SETTING_SALT, 'core', self::getDefaultScopeID());
 			return $salt;
 		}
 		
@@ -527,11 +608,13 @@
 		
 		public static function getUserTimezone()
 		{
+			if (!TBGContext::getUser() instanceof TBGUser) return 'sys';
 			return self::get(self::SETTING_USER_TIMEZONE, 'core', null, TBGContext::getUser()->getID());
 		}
 		
 		public static function getUserLanguage()
 		{
+			if (!TBGContext::getUser() instanceof TBGUser) return null;
 			return self::get(self::SETTING_USER_LANGUAGE, 'core', null, TBGContext::getUser()->getID());
 		}
 		
@@ -543,6 +626,13 @@
 		public static function getUploadsMaxSize($bytes = false)
 		{
 			return ($bytes) ? (int) (self::get(self::SETTING_UPLOAD_MAX_FILE_SIZE) * 1024 * 1024) : (int) self::get(self::SETTING_UPLOAD_MAX_FILE_SIZE);
+		}
+
+		public static function getUploadsEffectiveMaxSize($bytes = false)
+		{
+			$ini_min = min((int) ini_get('upload_max_filesize'), (int) ini_get('post_max_size')) * ($bytes ? 1024 * 1024 : 1);
+
+			return (0 == self::getUploadsMaxSize($bytes)) ? $ini_min : min($ini_min, self::getUploadsMaxSize($bytes));
 		}
 
 		public static function getUploadsRestrictionMode()
@@ -557,10 +647,10 @@
 
 			switch (true)
 			{
-				case (strpos($extensions, ',') !== false):
+				case (mb_strpos($extensions, ',') !== false):
 					$delimiter = ',';
 					break;
-				case (strpos($extensions, ';') !== false):
+				case (mb_strpos($extensions, ';') !== false):
 					$delimiter = ';';
 					break;
 			}
@@ -590,6 +680,16 @@
 		public static function showInfoBox($key)
 		{
 			self::deleteSetting(self::INFOBOX_PREFIX . $key);
+		}
+
+		public static function setToggle($toggle, $state)
+		{
+			self::saveSetting(self::TOGGLE_PREFIX . $toggle, $state, 'core', TBGContext::getScope()->getID(), TBGContext::getUser()->getID());
+		}
+
+		public static function getToggle($toggle)
+		{
+			return (bool) self::get(self::TOGGLE_PREFIX . $toggle, 'core', TBGContext::getScope()->getID(), TBGContext::getUser()->getID());
 		}
 
 		public static function isPermissive()
@@ -622,32 +722,51 @@
 			return self::getPasswordSalt();
 		}
 		
-		public static function setTimezone()
-		{
-			$offset = null;
-			if (TBGContext::getUser() instanceof TBGUser)
-			{
-				$offset = self::get(self::SETTING_USER_TIMEZONE, 'core', null, TBGContext::getUser()->getID());
-			}
-			
-			if ($offset === null || $offset == 'sys')
-			{
-				$offset = self::get(self::SETTING_SERVER_TIMEZONE);
-			}
-			
-			if ($offset == 0)
-				$tz_string = "GMT";
-			elseif ($offset > 0)
-				$tz_string = "Etc/GMT+" . $offset;
-			else
-				$tz_string = "Etc/GMT" . $offset;
-
-			date_default_timezone_set($tz_string);
-		}
-		
 		public static function getAuthenticationBackend()
 		{
 			return self::get(self::SETTING_AUTH_BACKEND);
+		}
+		
+		public static function isUsingExternalAuthenticationBackend()
+		{
+			if (TBGSettings::getAuthenticationBackend() !== null && TBGSettings::getAuthenticationBackend() !== 'tbg'): return true; else: return false; endif;
+		}
+
+		public static function getCoreWorkflow()
+		{
+			if (self::$_core_workflow === null)
+			{
+				self::$_core_workflow = new TBGWorkflow(self::get(self::SETTING_DEFAULT_WORKFLOW));
+			}
+			return self::$_core_workflow;
+		}
+
+		public static function getCoreWorkflowScheme()
+		{
+			if (self::$_core_workflowscheme === null)
+			{
+				self::$_core_workflowscheme = new TBGWorkflowScheme(self::get(self::SETTING_DEFAULT_WORKFLOWSCHEME));
+			}
+			return self::$_core_workflowscheme;
+		}
+
+		public static function getCoreIssuetypeScheme()
+		{
+			if (self::$_core_issuetypescheme === null)
+			{
+				self::$_core_issuetypescheme = new TBGIssuetypeScheme(self::get(self::SETTING_DEFAULT_ISSUETYPESCHEME));
+			}
+			return self::$_core_issuetypescheme;
+		}
+		
+		public static function listen_TBGFile_hasAccess(TBGEvent $event)
+		{
+			$file = $event->getSubject();
+			if ($file->getID() == self::getHeaderIconID() || $file->getID() == self::getFaviconID())
+			{
+				$event->setReturnValue(true);
+				$event->setProcessed();
+			}
 		}
 
 	}

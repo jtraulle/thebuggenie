@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Votes table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="votes")
 	 */
 	class TBGVotesTable extends TBGB2DBTable 
 	{
@@ -27,19 +33,9 @@
 		const VOTE = 'votes.vote';
 		const UID = 'votes.uid';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGVotesTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGVotesTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addInteger(self::TARGET, 10);
 			parent::_addInteger(self::VOTE, 2);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
@@ -49,7 +45,7 @@
 		public function getVoteSumForIssue($issue_id)
 		{
 			$crit = $this->getCriteria();
-			$crit->addSelectionColumn(self::VOTE, 'votes_total', B2DBCriteria::DB_SUM);
+			$crit->addSelectionColumn(self::VOTE, 'votes_total', Criteria::DB_SUM);
 			$crit->addWhere(self::TARGET, $issue_id);
 			$res = $this->doSelectOne($crit);
 

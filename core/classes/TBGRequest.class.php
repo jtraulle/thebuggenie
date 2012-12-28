@@ -16,7 +16,7 @@
 	 * @package thebuggenie
 	 * @subpackage mvc
 	 */
-	class TBGRequest
+	class TBGRequest implements ArrayAccess
 	{
 		
 		const POST = 1;
@@ -27,6 +27,7 @@
 		protected $_get_parameters = array();
 		protected $_files = array();
 		protected $_cookies = array();
+		protected $_querystring = null;
 
 		protected $_hasfiles = false;
 
@@ -63,12 +64,12 @@
 						if ($thefile['error'] == UPLOAD_ERR_OK)
 						{
 							TBGLogging::log('No upload errors');
-							if (filesize($thefile['tmp_name']) > TBGSettings::getUploadsMaxSize(true) && TBGSettings::getUploadsMaxSize() > 0)
+							if (filesize($thefile['tmp_name']) > TBGSettings::getUploadsEffectiveMaxSize(true))
 							{
-								throw new Exception(TBGContext::getI18n()->__('You cannot upload files bigger than %max_size% MB', array('%max_size%' => TBGSettings::getUploadsMaxSize())));
+								throw new Exception(TBGContext::getI18n()->__('You cannot upload files bigger than %max_size% MB', array('%max_size%' => TBGSettings::getUploadsEffectiveMaxSize())));
 							}
 							TBGLogging::log('Upload filesize ok');
-							$extension = substr(basename($thefile['name']), strpos(basename($thefile['name']), '.'));
+							$extension = mb_substr(basename($thefile['name']), mb_strpos(basename($thefile['name']), '.'));
 							if ($extension == '')
 							{
 								TBGLogging::log('OOps, could not determine upload filetype', 'main', TBGLogging::LEVEL_WARNING_RISK);
@@ -77,14 +78,14 @@
 							else
 							{
 								TBGLogging::log('Checking uploaded file extension');
-								$extension = substr($extension, 1);
+								$extension = mb_substr($extension, 1);
 								$upload_extensions = TBGSettings::getUploadsExtensionsList();
 								if (TBGSettings::getUploadsRestrictionMode() == 'blacklist')
 								{
 									TBGLogging::log('... using blacklist');
 									foreach ($upload_extensions as $an_ext)
 									{
-										if (strtolower(trim($extension)) == strtolower(trim($an_ext)))
+										if (mb_strtolower(trim($extension)) == mb_strtolower(trim($an_ext)))
 										{
 											TBGLogging::log('Upload extension not ok');
 											throw new Exception(TBGContext::getI18n()->__('This filetype is not allowed'));
@@ -98,7 +99,7 @@
 									$is_ok = false;
 									foreach ($upload_extensions as $an_ext)
 									{
-										if (strtolower(trim($extension)) == strtolower(trim($an_ext)))
+										if (mb_strtolower(trim($extension)) == mb_strtolower(trim($an_ext)))
 										{
 											TBGLogging::log('Upload extension ok');
 											$is_ok = true;
@@ -111,7 +112,7 @@
 										throw new Exception(TBGContext::getI18n()->__('This filetype is not allowed'));
 									}
 								}
-								/*if (in_array(strtolower(trim($extension)), array('php', 'asp')))
+								/*if (in_array(mb_strtolower(trim($extension)), array('php', 'asp')))
 								{
 									TBGLogging::log('Upload extension is php or asp');
 									throw new Exception(TBGContext::getI18n()->__('This filetype is not allowed'));
@@ -120,10 +121,19 @@
 							if (is_uploaded_file($thefile['tmp_name']))
 							{
 								TBGLogging::log('Uploaded file is uploaded');
-								$files_dir = TBGSettings::getUploadsLocalpath();
+
 								$new_filename = TBGContext::getUser()->getID() . '_' . NOW . '_' . basename($thefile['name']);
-								TBGLogging::log('Moving uploaded file to '.$new_filename);
-								if (!move_uploaded_file($thefile['tmp_name'], $files_dir . $new_filename))
+								if (TBGSettings::getUploadStorage() == 'files')
+								{
+									$files_dir = TBGSettings::getUploadsLocalpath();
+									$filename = $files_dir.$new_filename;
+								}
+								else
+								{
+									$filename = $thefile['tmp_name'];
+								}
+								TBGLogging::log('Moving uploaded file to '.$filename);
+								if (TBGSettings::getUploadStorage() == 'files' && !move_uploaded_file($thefile['tmp_name'], $filename))
 								{
 									TBGLogging::log('Moving uploaded file failed!');
 									throw new Exception(TBGContext::getI18n()->__('An error occured when saving the file'));
@@ -131,18 +141,18 @@
 								else
 								{
 									TBGLogging::log('Upload complete and ok, storing upload status and returning filename '.$new_filename);
-									$content_type = TBGFile::getMimeType($files_dir.$new_filename);
+									$content_type = TBGFile::getMimeType($filename);
 									$file = new TBGFile();
 									$file->setRealFilename($new_filename);
 									$file->setOriginalFilename(basename($thefile['name']));
 									$file->setContentType($content_type);
 									$file->setDescription($this->getParameter($key.'_description'));
+									$file->setUploadedBy(TBGContext::getUser());
 									if (TBGSettings::getUploadStorage() == 'database')
 									{
-										$file->setContent(file_get_contents($files_dir.$new_filename));
+										$file->setContent(file_get_contents($filename));
 									}
 									$file->save();
-									//$file = TBGFile::createNew($new_filename, basename($thefile['name']), $content_type, $this->getParameter($key.'_description'), ((TBGSettings::getUploadStorage() == 'database') ? file_get_contents($files_dir.$new_filename) : null));
 									if ($apc_exists)
 									{
 										$_SESSION['__upload_status'][$this->getParameter('APC_UPLOAD_PROGRESS')] = array(
@@ -170,7 +180,7 @@
 							{
 								case UPLOAD_ERR_INI_SIZE:
 								case UPLOAD_ERR_FORM_SIZE:
-									throw new Exception(TBGContext::getI18n()->__('You cannot upload files bigger than %max_size% MB', array('%max_size%' => TBGSettings::getUploadsMaxSize())));
+									throw new Exception(TBGContext::getI18n()->__('You cannot upload files bigger than %max_size% MB', array('%max_size%' => TBGSettings::getUploadsEffectiveMaxSize())));
 									break;
 								case UPLOAD_ERR_PARTIAL:
 									throw new Exception(TBGContext::getI18n()->__('The upload was interrupted, please try again'));
@@ -236,7 +246,7 @@
 			TBGLogging::log('sanitizing id');
             // sanitize the ID value
             $id = preg_replace('/[^a-z0-9]/i', '', $id);
-            if (strlen($id) == 0)
+            if (mb_strlen($id) == 0)
 			{
 				TBGLogging::log('oops, invalid id '. $id);
                 return;
@@ -364,13 +374,14 @@
 				$this->_files[$key] = $file;
 				$this->_hasfiles = true;
 			}
-			//var_dump($this->_request_parameters);die();
-			$this->_is_ajax_call = (array_key_exists("HTTP_X_REQUESTED_WITH", $_SERVER) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) == 'xmlhttprequest');
+			$this->_is_ajax_call = (array_key_exists("HTTP_X_REQUESTED_WITH", $_SERVER) && mb_strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) == 'xmlhttprequest');
 
             if (isset($_SESSION) && !array_key_exists('__upload_status', $_SESSION))
 			{
                 $_SESSION['__upload_status'] = array();
             }
+
+			$this->_querystring = array_key_exists('QUERY_STRING', $_SERVER) ? $_SERVER['QUERY_STRING'] : '';
 
 		}
 
@@ -500,7 +511,7 @@
 		 */
 		public function getMethod()
 		{
-			switch (strtolower($_SERVER['REQUEST_METHOD']))
+			switch (mb_strtolower($_SERVER['REQUEST_METHOD']))
 			{
 				case 'get':
 					return self::GET;
@@ -523,6 +534,11 @@
 			return ($this->getMethod() == $method) ? true : false;
 		}
 
+		public function isPost()
+		{
+			return $this->isMethod(self::POST);
+		}
+
 		/**
 		 * Check if the current request is an ajax call
 		 *
@@ -542,7 +558,14 @@
 		 */
 		protected function __sanitize_string($string)
 		{
-			$charset = (class_exists('TBGContext')) ? TBGContext::getI18n()->getCharset() : 'utf-8';
+			try
+			{
+				$charset = (class_exists('TBGContext')) ? TBGContext::getI18n()->getCharset() : 'utf-8';
+			}
+			catch (Exception $e)
+			{
+				$charset = 'utf-8';
+			}
 			return htmlspecialchars($string, ENT_QUOTES, $charset);
 		}
 		
@@ -562,4 +585,30 @@
 		{
 			return $this->getParameter('format', 'html');
 		}
+		
+		public function offsetExists($offset)
+		{
+			return $this->hasParameter($offset);
+		}
+
+		public function offsetGet($offset)
+		{
+			return $this->getParameter($offset);
+		}
+
+		public function offsetSet($offset, $value)
+		{
+			$this->setParameter($offset, $value);
+		}
+
+		public function offsetUnset($offset)
+		{
+			$this->setParameter($offset, null);
+		}
+
+		public function getQueryString()
+		{
+			return $this->_querystring;
+		}
+		
 	}

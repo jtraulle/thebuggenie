@@ -7,7 +7,7 @@
 		<h3 style="margin-top: 20px;"><?php echo $groupby_description; ?></h3>
 	<?php endif; ?>
 	<?php if ($showtablestart): ?>
-		<table style="width: 100%;" cellpadding="0" cellspacing="0">
+		<table style="width: 100%;" cellpadding="0" cellspacing="0" class="resizable sortable">
 			<thead>
 				<tr>
 					<th style="text-align: center; width: 60px;"><?php echo __('Progress'); ?></th>
@@ -44,15 +44,15 @@
 						}
 
 					?>; font-weight: bold;"><?php echo $issue->getPercentCompleted(); ?>%</td>
-					<td style="padding: 3px; font-size: 0.9em;"><?php echo (strlen($issue->getTitle()) > 60) ? substr($issue->getTitle(), 0 , 57) . '...' : $issue->getTitle(); ?></td>
+					<td style="padding: 3px; font-size: 0.9em;"><?php echo (mb_strlen($issue->getTitle()) > 60) ? mb_substr($issue->getTitle(), 0 , 57) . '...' : $issue->getTitle(); ?></td>
 					<td style="padding: 3px; color: #888;">
 						<?php if ($issue->hasDescription()): ?>
-							<?php echo (strlen($issue->getDescription()) > 120) ? substr($issue->getDescription(), 0 , 117) . '...' : $issue->getDescription(); ?>
+							<?php echo (mb_strlen($issue->getDescription()) > 120) ? mb_substr($issue->getDescription(), 0 , 117) . '...' : $issue->getDescription(); ?>
 						<?php else: ?>
 							<span class="faded_out"><?php echo __('No description provided'); ?></span>
 						<?php endif; ?>
 					</td>
-					<td class="result_issue"><?php echo link_tag(make_url('viewissue', array('project_key' => $issue->getProject()->getKey(), 'issue_no' => $issue->getFormattedIssueNo())), $issue->getFormattedIssueNo(true, true)); ?></td>
+					<td class="result_issue"><?php echo link_tag(make_url('viewissue', array('project_key' => $issue->getProject()->getKey(), 'issue_no' => $issue->getFormattedIssueNo())), $issue->getFormattedIssueNo(true, true), array('class' => 'issue_link')); ?></td>
 				</tr>
 	<?php if ($cc == count($issues)): ?>
 			</tbody>

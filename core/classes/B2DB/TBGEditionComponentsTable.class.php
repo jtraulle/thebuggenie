@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Edition components table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="editioncomponents")
 	 */
 	class TBGEditionComponentsTable extends TBGB2DBTable 
 	{
@@ -26,11 +32,11 @@
 		const EDITION = 'editioncomponents.edition';
 		const COMPONENT = 'editioncomponents.component';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addForeignKeyColumn(self::EDITION, B2DB::getTable('TBGEditionsTable'), TBGEditionsTable::ID);
-			parent::_addForeignKeyColumn(self::COMPONENT, B2DB::getTable('TBGComponentsTable'), TBGComponentsTable::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
+			parent::_addForeignKeyColumn(self::EDITION, Core::getTable('TBGEditionsTable'), TBGEditionsTable::ID);
+			parent::_addForeignKeyColumn(self::COMPONENT, Core::getTable('TBGComponentsTable'), TBGComponentsTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 		}
 
@@ -40,6 +46,14 @@
 			$crit->addWhere(self::EDITION, $edition_id);
 			$res = $this->doSelect($crit);
 
+			return $res;
+		}
+
+		public function deleteByEditionID($edition_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::EDITION, $edition_id);
+			$res = $this->doDelete($crit);
 			return $res;
 		}
 
@@ -74,6 +88,14 @@
 			$crit->addWhere(self::COMPONENT, $component_id);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$res = $this->doDelete($crit);
+		}
+
+		public function deleteByComponentID($component_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::COMPONENT, $component_id);
+			$res = $this->doDelete($crit);
+			return $res;
 		}
 
 	}

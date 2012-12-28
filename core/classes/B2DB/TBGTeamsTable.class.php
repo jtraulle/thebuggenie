@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Teams table
 	 *
@@ -15,6 +19,9 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="teams")
+	 * @Entity(class="TBGTeam")
 	 */
 	class TBGTeamsTable extends TBGB2DBTable 
 	{
@@ -26,39 +33,36 @@
 		const NAME = 'teams.name';
 		const ONDEMAND = 'teams.ondemand';
 
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addVarchar(self::NAME, 50);
-			parent::_addBoolean(self::ONDEMAND);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
+//		public function __construct()
+//		{
+//			parent::__construct(self::B2DBNAME, self::ID);
+//			parent::_addVarchar(self::NAME, 50);
+//			parent::_addBoolean(self::ONDEMAND);
+//			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+//		}
 
-		public function getAll($scope = null)
+		public function getAll()
 		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, $scope);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$crit->addWhere(self::ONDEMAND, false);
 			
-			$res = $this->doSelect($crit, 'none');
-			
-			return $res;
+			return $this->select($crit);
 		}
 
 		public function doesTeamNameExist($team_name)
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::NAME, $team_name);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 
 			return (bool) $this->doCount($crit);
 		}
 
-		public function countTeams($scope = null)
+		public function countTeams()
 		{
-			$scope = ($scope === null) ? TBGContext::getScope()->getID() : $scope;
 			$crit = $this->getCriteria();
-			$crit->addWhere(self::SCOPE, $scope);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$crit->addWhere(self::ONDEMAND, false);
 
 			return $this->doCount($crit);

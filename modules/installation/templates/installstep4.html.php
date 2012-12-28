@@ -4,7 +4,7 @@
 		<div class="error"><?php echo nl2br($error); ?></div>
 		<h2>An error occured</h2>
 		<div style="font-size: 13px;">An error occured and the installation has been stopped. Please try to fix the error based on the information above, then click back, and try again.<br>
-		If you think this is a bug, please report it in our <a href="http://thebuggenie.com/thebuggenie" target="_new">online bug tracker</a>.</div>
+		If you think this is a bug, please report it in our <a href="http://issues.thebuggenie.com" target="_new">online bug tracker</a>.</div>
 	<?php else: ?>
 		<?php if ($htaccess_error !== false): ?>
 			<div class="error">
@@ -75,7 +75,7 @@
 			</fieldset>
 			<div style="padding-top: 20px; clear: both; text-align: center;">
 				<label for="continue_button" style="font-size: 13px; margin-right: 10px;">Click this button to continue and enable the selected modules</label>
-				<img src="themes/oxygen/spinning_30.gif" id="next_indicator" style="display: none;">
+				<img src="iconsets/oxygen/spinning_30.gif" id="next_indicator" style="display: none;">
 				<input type="hidden" name="modules[publish]" value="1" id="modules_publish_yes">
 				<input type="submit" id="continue_button" onclick="$('continue_button').hide();$('next_indicator').show();" value="Continue">
 			</div>

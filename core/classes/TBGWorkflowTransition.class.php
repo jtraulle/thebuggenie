@@ -15,16 +15,25 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGWorkflowTransitionsTable")
 	 */
-	class TBGWorkflowTransition extends TBGIdentifiableClass
+	class TBGWorkflowTransition extends TBGIdentifiableScopedClass
 	{
 
-		static protected $_b2dbtablename = 'TBGWorkflowTransitionsTable';
-		
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
 		/**
 		 * The workflow description
 		 *
 		 * @var string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_description = null;
 
@@ -38,10 +47,14 @@
 		 * The outgoing step from this transition
 		 *
 		 * @var TBGWorkflowStep
-		 * @Class TBGWorkflowStep
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGWorkflowStep")
 		 */
 		protected $_outgoing_step_id = null;
 
+		/**
+		 * @Column(type="string", length=200)
+		 */
 		protected $_template = null;
 		
 		/**
@@ -59,7 +72,8 @@
 		 * The associated workflow object
 		 *
 		 * @var TBGWorkflow
-		 * @Class TBGWorkflow
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGWorkflow")
 		 */
 		protected $_workflow_id = null;
 
@@ -93,9 +107,9 @@
 			$transitions['investigateissue'] = array('name' => 'Investigate issue', 'description' => 'Assign the issue to yourself and start investigating it', 'outgoing_step' => 'investigating', 'template' => null, 'pre_validations' => array(TBGWorkflowTransitionValidationRule::RULE_MAX_ASSIGNED_ISSUES => 5), 'actions' => array(TBGWorkflowTransitionAction::ACTION_ASSIGN_ISSUE_SELF => 0));
 			$transitions['requestmoreinformation'] = array('name' => 'Request more information', 'description' => 'Move issue back to new state for more details', 'outgoing_step' => 'new', 'template' => 'main/updateissueproperties', 'actions' => array(TBGWorkflowTransitionAction::ACTION_CLEAR_ASSIGNEE => 0));
 			$transitions['confirmissue'] = array('name' => 'Confirm issue', 'description' => 'Confirm that the issue is valid', 'outgoing_step' => 'confirmed', 'template' => null, 'actions' => array(TBGWorkflowTransitionAction::ACTION_SET_PERCENT => 10, TBGWorkflowTransitionAction::ACTION_SET_PRIORITY));
-			$transitions['rejectissue'] = array('name' => 'Reject issue', 'description' => 'Reject the issue as invalid', 'outgoing_step' => 'rejected', 'template' => 'main/updateissueproperties', 'post_validations' => array(TBGWorkflowTransitionValidationRule::RULE_RESOLUTION_VALID => join(',', $rejected_resolutions)), 'actions' => array(TBGWorkflowTransitionAction::ACTION_SET_RESOLUTION => 0, TBGWorkflowTransitionAction::ACTION_SET_PERCENT => 100, TBGWorkflowTransitionAction::ACTION_USER_STOP_WORKING => 0));
+			$transitions['rejectissue'] = array('name' => 'Reject issue', 'description' => 'Reject the issue as invalid', 'outgoing_step' => 'rejected', 'template' => 'main/updateissueproperties', 'post_validations' => array(TBGWorkflowTransitionValidationRule::RULE_RESOLUTION_VALID => join(',', $rejected_resolutions)), 'actions' => array(TBGWorkflowTransitionAction::ACTION_SET_RESOLUTION => 0, TBGWorkflowTransitionAction::ACTION_SET_DUPLICATE => 0, TBGWorkflowTransitionAction::ACTION_SET_PERCENT => 100, TBGWorkflowTransitionAction::ACTION_USER_STOP_WORKING => 0));
 			$transitions['acceptissue'] = array('name' => 'Accept issue', 'description' => 'Accept the issue and assign it to yourself', 'outgoing_step' => 'inprogress', 'template' => null, 'pre_validations' => array(TBGWorkflowTransitionValidationRule::RULE_MAX_ASSIGNED_ISSUES => 5), 'actions' => array(TBGWorkflowTransitionAction::ACTION_ASSIGN_ISSUE_SELF => 0, TBGWorkflowTransitionAction::ACTION_USER_START_WORKING => 0));
-			$transitions['reopenissue'] = array('name' => 'Reopen issue', 'description' => 'Reopen the issue', 'outgoing_step' => 'new', 'template' => null, 'actions' => array(TBGWorkflowTransitionAction::ACTION_CLEAR_RESOLUTION => 0, TBGWorkflowTransitionAction::ACTION_CLEAR_PERCENT => 0));
+			$transitions['reopenissue'] = array('name' => 'Reopen issue', 'description' => 'Reopen the issue', 'outgoing_step' => 'new', 'template' => null, 'actions' => array(TBGWorkflowTransitionAction::ACTION_CLEAR_RESOLUTION => 0, TBGWorkflowTransitionAction::ACTION_CLEAR_DUPLICATE => 0, TBGWorkflowTransitionAction::ACTION_CLEAR_PERCENT => 0));
 			$transitions['assignissue'] = array('name' => 'Assign issue', 'description' => 'Accept the issue and assign it to someone', 'outgoing_step' => 'inprogress', 'template' => 'main/updateissueproperties', 'actions' => array(TBGWorkflowTransitionAction::ACTION_ASSIGN_ISSUE => 0, TBGWorkflowTransitionAction::ACTION_USER_START_WORKING => 0));
 			$transitions['markreadyfortesting'] = array('name' => 'Mark ready for testing', 'description' => 'Mark the issue as ready to be tested', 'outgoing_step' => 'readyfortesting', 'template' => null, 'actions' => array(TBGWorkflowTransitionAction::ACTION_CLEAR_ASSIGNEE => 0, TBGWorkflowTransitionAction::ACTION_USER_STOP_WORKING => 0));
 			$transitions['resolveissue'] = array('name' => 'Resolve issue', 'description' => 'Resolve the issue', 'outgoing_step' => 'closed', 'template' => 'main/updateissueproperties', 'post_validations' => array(TBGWorkflowTransitionValidationRule::RULE_STATUS_VALID => join(',', $closed_statuses), TBGWorkflowTransitionValidationRule::RULE_RESOLUTION_VALID => join(',', $resolved_resolutions)), 'actions' => array(TBGWorkflowTransitionAction::ACTION_SET_STATUS => 0, TBGWorkflowTransitionAction::ACTION_SET_PERCENT => 100, TBGWorkflowTransitionAction::ACTION_SET_RESOLUTION => 0, TBGWorkflowTransitionAction::ACTION_USER_STOP_WORKING => 0));
@@ -158,6 +172,26 @@
 		}
 		
 		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
+		/**
 		 * Returns the workflows description
 		 *
 		 * @return string
@@ -184,7 +218,7 @@
 		 */
 		public function getWorkflow()
 		{
-			return $this->_getPopulatedObjectFromProperty('_workflow_id');
+			return $this->_b2dbLazyload('_workflow_id');
 		}
 
 		public function setWorkflow(TBGWorkflow $workflow)
@@ -200,6 +234,7 @@
 		 */
 		public function isCore()
 		{
+			return false;
 			return $this->getWorkflow()->isCore();
 		}
 
@@ -266,7 +301,7 @@
 		 */
 		public function getOutgoingStep()
 		{
-			return $this->_getPopulatedObjectFromProperty('_outgoing_step_id');
+			return $this->_b2dbLazyload('_outgoing_step_id');
 		}
 		
 		/**
@@ -291,7 +326,7 @@
 			}
 		}
 		
-		public function _preDelete()
+		protected function _preDelete()
 		{
 			TBGWorkflowStepTransitionsTable::getTable()->deleteByTransitionID($this->getID());
 		}
@@ -425,14 +460,6 @@
 			return array_keys($this->_validation_errors);
 		}
 		
-		public function listenIssueSaveAddComment(TBGEvent $event)
-		{
-			$comment = $event->getParameter('comment');
-			$comment->setContent($this->_request->getParameter('comment_body', null, false) . "\n\n" . $comment->getContent());
-			$comment->setSystemComment(false);
-			$comment->save();
-		}
-
 		/**
 		 * Transition an issue to the outgoing step, based on request data if available
 		 * 
@@ -443,11 +470,6 @@
 		{
 			$request = ($request !== null) ? $request : $this->_request;
 			$this->getOutgoingStep()->applyToIssue($issue);
-			if ($request->hasParameter('comment_body') && trim($request->getParameter('comment_body') != '')) {
-				$this->_request = $request;
-				TBGEvent::listen('core', 'TBGIssue::save', array($this, 'listenIssueSaveAddComment'));
-			}
-			
 			if (!empty($this->_validation_errors)) return false;
 			
 			foreach ($this->getActions() as $action)
@@ -455,6 +477,20 @@
 				$action->perform($issue, $request);
 			}
 			
+			if ($request->hasParameter('comment_body') && trim($request['comment_body'] != '')) {
+				$comment = new TBGComment();
+				$comment->setTitle('');
+				$comment->setContent($request->getParameter('comment_body', null, false));
+				$comment->setPostedBy(TBGContext::getUser()->getID());
+				$comment->setTargetID($issue->getID());
+				$comment->setTargetType(TBGComment::TYPE_ISSUE);
+				$comment->setModuleName('core');
+				$comment->setIsPublic(true);
+				$comment->setSystemComment(false);
+				$comment->save();
+				$issue->setSaveComment($comment);
+			}
+
 			$issue->save();
 		}
 

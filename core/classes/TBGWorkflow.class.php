@@ -15,27 +15,29 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage core
+	 *
+	 * @Table(name="TBGWorkflowsTable")
 	 */
-	class TBGWorkflow extends TBGIdentifiableClass
+	class TBGWorkflow extends TBGIdentifiableScopedClass
 	{
 
-		static protected $_b2dbtablename = 'TBGWorkflowsTable';
-		
 		protected static $_workflows = null;
 		
-		/**
-		 * The default (core) workflow
-		 * 
-		 * @var TBGWorkflow
-		 */
-		protected static $_core_workflow = null;
-
 		protected static $_num_workflows = null;
+
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
 
 		/**
 		 * The workflow description
 		 *
 		 * @var string
+		 * @Column(type="string", length=200)
 		 */
 		protected $_description = null;
 
@@ -43,34 +45,43 @@
 		 * Whether the workflow is active or not
 		 *
 		 * @var boolean
+		 * @Column(type="boolean")
 		 */
 		protected $_is_active = true;
 
+		/**
+		 * This workflow's steps
+		 *
+		 * @var array|TBGWorkflowStep
+		 * @Relates(class="TBGWorkflowStep", collection=true, foreign_column="workflow_id")
+		 */
 		protected $_steps = null;
 
 		protected $_num_steps = null;
 
+		/**
+		 * This workflow's transitions
+		 *
+		 * @var array|TBGWorkflowTransition
+		 * @Relates(class="TBGWorkflowTransition", collection=true, foreign_column="workflow_id")
+		 */
 		protected $_transitions = null;
 		
-		protected $_number_of_schemes = null;
+		/**
+		 * This workflow's schemes
+		 *
+		 * @var array|TBGWorkflowTransition
+		 * @Relates(class="TBGWorkflowScheme", collection=true, manytomany=true, joinclass="TBGWorkflowIssuetypeTable")
+		 */
+		protected $_schemes = null;
 
+		protected $_num_schemes = null;
+		
 		protected static function _populateWorkflows()
 		{
 			if (self::$_workflows === null)
 			{
-				self::$_workflows = array();
-				if ($res = TBGWorkflowsTable::getTable()->getAll())
-				{
-					while ($row = $res->getNextRow())
-					{
-						$workflow = TBGContext::factory()->TBGWorkflow($row->get(TBGWorkflowsTable::ID), $row);
-						
-						if (self::$_core_workflow === null)
-							self::$_core_workflow = $workflow;
-						
-						self::$_workflows[$row->get(TBGWorkflowsTable::ID)] = $workflow;
-					}
-				}
+				self::$_workflows = TBGWorkflowsTable::getTable()->getAll();
 			}
 		}
 		
@@ -85,24 +96,15 @@
 			return self::$_workflows;
 		}
 		
-		/**
-		 * Return the default (core) workflow
-		 * 
-		 * @return TBGWorkflow
-		 */
-		public static function getCoreWorkflow()
-		{
-			self::_populateWorkflows();
-			return self::$_core_workflow;
-		}
-
 		public static function loadFixtures(TBGScope $scope)
 		{
 			$workflow = new TBGWorkflow();
 			$workflow->setName("Default workflow");
 			$workflow->setDescription("This is the default workflow. It is used by all projects with no specific workflow selected, and for issue types with no specific workflow specified. This workflow cannot be edited or removed.");
+			$workflow->setScope($scope->getID());
 			$workflow->save();
-			
+
+			TBGSettings::saveSetting(TBGSettings::SETTING_DEFAULT_WORKFLOW, $workflow->getID(), 'core', $scope->getID());
 			TBGWorkflowStep::loadFixtures($scope, $workflow);
 		}
 
@@ -152,7 +154,7 @@
 		 */
 		public function isCore()
 		{
-			return ($this->getID() == self::getCoreWorkflow()->getID());
+			return ($this->getID() == TBGSettings::getCoreWorkflow()->getID());
 		}
 
 		/**
@@ -169,7 +171,7 @@
 		{
 			if ($this->_transitions === null)
 			{
-				$this->_transitions = TBGWorkflowTransitionsTable::getTable()->getByWorkflowID($this->getID());
+				$this->_b2dbLazyload('_transitions');
 			}
 		}
 		
@@ -188,7 +190,7 @@
 		{
 			if ($this->_steps === null)
 			{
-				$this->_steps = TBGWorkflowStepsTable::getTable()->getByWorkflowID($this->getID());
+				$this->_b2dbLazyload('_steps');
 			}
 		}
 
@@ -222,23 +224,27 @@
 			}
 			elseif ($this->_num_steps === null)
 			{
-				$this->_num_steps = TBGWorkflowStepsTable::getTable()->countByWorkflowID($this->getID());
+				$this->_b2dbLazycount('_steps');
 			}
 			return $this->_num_steps;
 		}
 
 		public function isInUse()
 		{
-			if ($this->_number_of_schemes === null)
-			{
-				$this->_number_of_schemes = TBGWorkflowIssuetypeTable::getTable()->countSchemesByWorkflowID($this->getID());
-			}
-			return (bool) $this->_number_of_schemes;
+			return (bool) $this->getNumberOfSchemes();
 		}
 		
 		public function getNumberOfSchemes()
 		{
-			return $this->_number_of_schemes;
+			if ($this->_num_schemes === null && $this->_schemes !== null)
+			{
+				$this->_num_schemes = count($this->_schemes);
+			}
+			elseif ($this->_num_schemes === null)
+			{
+				$this->_num_schemes = $this->_b2dbLazycount('_schemes');
+			}
+			return $this->_num_schemes;
 		}
 		
 		public function copy($new_name)
@@ -307,4 +313,24 @@
 			}
 		}
 		
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
+		}
+
 	}

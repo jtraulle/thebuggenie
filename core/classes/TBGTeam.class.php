@@ -15,20 +15,31 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGTeamsTable")
 	 */
-	class TBGTeam extends TBGIdentifiableClass 
+	class TBGTeam extends TBGIdentifiableScopedClass
 	{
 		
-		static protected $_b2dbtablename = 'TBGTeamsTable';
-
-		static protected $_teams = null;
+		protected static $_teams = null;
 		
-		static protected $_num_teams = null;
+		protected static $_num_teams = null;
 
 		protected $_members = null;
 
 		protected $_num_members = null;
-		
+
+		/**
+		 * The name of the object
+		 *
+		 * @var string
+		 * @Column(type="string", length=200)
+		 */
+		protected $_name;
+
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_ondemand = false;
 		
 		protected $_associated_projects = null;
@@ -42,14 +53,7 @@
 		{
 			if (self::$_teams === null)
 			{
-				self::$_teams = array();
-				if ($res = B2DB::getTable('TBGTeamsTable')->getAll())
-				{
-					while ($row = $res->getNextRow())
-					{
-						self::$_teams[$row->get(TBGTeamsTable::ID)] = TBGContext::factory()->TBGTeam($row->get(TBGTeamsTable::ID), $row);
-					}
-				}
+				self::$_teams = TBGTeamsTable::getTable()->getAll();
 			}
 			return self::$_teams;
 		}
@@ -77,7 +81,7 @@
 			$translators->save();
 		}
 
-		public static function getTeamsCount()
+		public static function countAll()
 		{
 			if (self::$_num_teams === null)
 			{
@@ -93,11 +97,6 @@
 		public function __toString()
 		{
 			return "" . $this->_name;
-		}
-		
-		public function getType()
-		{
-			return self::TYPE_TEAM;
 		}
 		
 		/**
@@ -138,7 +137,7 @@
 			}
 		}
 		
-		public function _preDelete()
+		protected function _preDelete()
 		{
 			$crit = TBGTeamMembersTable::getTable()->getCriteria();
 			$crit->addWhere(TBGTeamMembersTable::TID, $this->getID());
@@ -147,10 +146,12 @@
 		
 		public static function findTeams($details)
 		{
-			$crit = new B2DBCriteria();
-			$crit->addWhere(TBGTeamsTable::NAME, "%$details%", B2DBCriteria::DB_LIKE);
+			$crit = new \b2db\Criteria();
+			$crit->addWhere(TBGTeamsTable::NAME, "%$details%", \b2db\Criteria::DB_LIKE);
+			$crit->addWhere(TBGTeamsTable::ONDEMAND, false);
+
 			$teams = array();
-			if ($res = B2DB::getTable('TBGTeamsTable')->doSelect($crit))
+			if ($res = \b2db\Core::getTable('TBGTeamsTable')->doSelect($crit))
 			{
 				while ($row = $res->getNextRow())
 				{
@@ -185,11 +186,7 @@
 			{
 				$this->_associated_projects = array();
 				
-				$projects = B2DB::getTable('TBGProjectAssigneesTable')->getProjectsByTeamID($this->getID());
-				$edition_projects = B2DB::getTable('TBGEditionAssigneesTable')->getProjectsByTeamID($this->getID());
-				$component_projects = B2DB::getTable('TBGComponentAssigneesTable')->getProjectsByTeamID($this->getID());
-
-				$project_ids = array_merge(array_keys($projects), array_keys($edition_projects), array_keys($component_projects));
+				$project_ids = TBGProjectAssignedTeamsTable::getTable()->getProjectsByTeamID($this->getID());
 				foreach ($project_ids as $project_id)
 				{
 					$this->_associated_projects[$project_id] = TBGContext::factory()->TBGProject($project_id);
@@ -212,6 +209,26 @@
 		public function hasAccess()
 		{
 			return (bool) (TBGContext::getUser()->hasPageAccess('teamlist') || TBGContext::getUser()->isMemberOfTeam($this));
+		}
+
+		/**
+		 * Return the items name
+		 *
+		 * @return string
+		 */
+		public function getName()
+		{
+			return $this->_name;
+		}
+
+		/**
+		 * Set the edition name
+		 *
+		 * @param string $name
+		 */
+		public function setName($name)
+		{
+			$this->_name = $name;
 		}
 
 	}

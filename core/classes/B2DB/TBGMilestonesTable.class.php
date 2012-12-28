@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Milestones table
 	 *
@@ -15,6 +19,9 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="milestones")
+	 * @Entity(class="TBGMilestone")
 	 */
 	class TBGMilestonesTable extends TBGB2DBTable 
 	{
@@ -31,36 +38,26 @@
 		const STARTING = 'milestones.startingdate';
 		const SCHEDULED = 'milestones.scheduleddate';
 
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addVarchar(self::NAME, 100);
-			parent::_addText(self::DESCRIPTION, false);
-			parent::_addInteger(self::REACHED, 10);
-			parent::_addInteger(self::MILESTONE_TYPE, 2);
-			parent::_addInteger(self::STARTING, 10);
-			parent::_addInteger(self::SCHEDULED, 10);
-			parent::_addForeignKeyColumn(self::PROJECT, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
-		
-		public function createNew($name, $type, $project_id)
-		{
-			$crit = $this->getCriteria();
-			$crit->addInsert(self::NAME, $name);
-			$crit->addInsert(self::MILESTONE_TYPE, $type);
-			$crit->addInsert(self::PROJECT, $project_id);
-			$crit->addInsert(self::SCOPE, TBGContext::getScope()->getID());
-			$res = $this->doInsert($crit);
-			
-			return $res->getInsertID();
-		}
+//		public function __construct()
+//		{
+//			parent::__construct(self::B2DBNAME, self::ID);
+//			parent::_addVarchar(self::NAME, 100);
+//			parent::_addText(self::DESCRIPTION, false);
+//			parent::_addInteger(self::REACHED, 10);
+//			parent::_addInteger(self::MILESTONE_TYPE, 2);
+//			parent::_addInteger(self::STARTING, 10);
+//			parent::_addInteger(self::SCHEDULED, 10);
+//			parent::_addForeignKeyColumn(self::PROJECT, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
+//			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+//		}
 		
 		public function getAllByProjectID($project_id)
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::PROJECT, $project_id);
-			$crit->addOrderBy(self::SCHEDULED, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::STARTING, Criteria::SORT_ASC);
+			$crit->addOrderBy(self::SCHEDULED, Criteria::SORT_ASC);
+			$crit->addOrderBy(self::NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
 		}
@@ -70,7 +67,7 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::PROJECT, $project_id);
 			$crit->addWhere(self::MILESTONE_TYPE, TBGMilestone::TYPE_REGULAR);
-			$crit->addOrderBy(self::SCHEDULED, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::SCHEDULED, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
 		}
@@ -80,9 +77,16 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::PROJECT, $project_id);
 			$crit->addWhere(self::MILESTONE_TYPE, TBGMilestone::TYPE_SCRUMSPRINT);
-			$crit->addOrderBy(self::SCHEDULED, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::SCHEDULED, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
+		}
+
+		public function doesIDExist($userid)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::ID, $userid);
+			return $this->doCount($crit);
 		}
 
 		public function setReached($milestone_id)

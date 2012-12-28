@@ -15,11 +15,11 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage main
+	 *
+	 * @Table(name="TBGCommentsTable")
 	 */
-	class TBGComment extends TBGIdentifiableClass 
+	class TBGComment extends TBGIdentifiableScopedClass
 	{
-		
-		static protected $_b2dbtablename = 'TBGCommentsTable';
 		
 		/**
 		 * Issue comment
@@ -31,13 +31,17 @@
 		 */
 		const TYPE_ARTICLE = 2;
 
+		/**
+		 * @Column(type="text")
+		 */
 		protected $_content;
 		
 		/**
 		 * Who posted the comment
 		 * 
 		 * @var TBGUser
-		 * @Class TBGUser
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGUser")
 		 */
 		protected $_posted_by;
 		
@@ -45,27 +49,61 @@
 		 * Who last updated the comment
 		 * 
 		 * @var TBGUser
-		 * @Class TBGUser
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGUser")
 		 */
 		protected $_updated_by;
-		
+
+		/**
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_posted;
 
+		/**
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_updated;
 		
+		/**
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_target_id;
 		
+		/**
+		 * @Column(type="integer", length=5)
+		 */
 		protected $_target_type = self::TYPE_ISSUE;
 		
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_is_public = true;
 		
+		/**
+		 * @Column(type="string", length=100)
+		 */
 		protected $_module = 'core';
 		
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_deleted = false;
 		
+		/**
+		 * @Column(type="boolean")
+		 */
 		protected $_system_comment = false;
 
+		/**
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_comment_number = 0;
+
+		/**
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGComment")
+		 */
+		protected $_reply_to_comment = 0;
 
 		protected static $_comment_count = array();
 
@@ -74,7 +112,7 @@
 		 * Returns all comments for a given item
 		 *
 		 */
-		static function getComments($target_id, $target_type, $sort_order = B2DBCriteria::SORT_ASC)
+		static function getComments($target_id, $target_type, $sort_order = \b2db\Criteria::SORT_ASC)
 		{
 			$retval = array();
 			if ($res = TBGCommentsTable::getTable()->getComments($target_id, $target_type, $sort_order))
@@ -152,17 +190,10 @@
 		 *
 		 * @return boolean
 		 */
-		protected function _permissionCheckWithID($key, $explicit = false)
+		protected function _permissionCheckWithID($key)
 		{
 			$retval = TBGContext::getUser()->hasPermission($key, $this->getID(), 'core', true, null);
-			if ($explicit)
-			{
-				$retval = ($retval !== null) ? $retval : TBGContext::getUser()->hasPermission($key, 0, 'core', true, null);
-			}
-			else
-			{
-				$retval = ($retval !== null) ? $retval : TBGContext::getUser()->hasPermission($key);
-			}
+			$retval = ($retval !== null) ? $retval : TBGContext::getUser()->hasPermission($key, 0, 'core', true, null);
 
 			return $retval;
 		}
@@ -179,16 +210,14 @@
 		 */
 		protected function _permissionCheck($key, $exclusive = false)
 		{
-			$retval = null;
-			if ($this->getPostedByID() == TBGContext::getUser()->getID() && !$exclusive)
-			{
-				$retval = $this->_permissionCheckWithID($key.'own', true);
-			}
-			return ($retval !== null) ? $retval : $this->_permissionCheckWithID($key);
+			$retval = ($this->getPostedByID() == TBGContext::getUser()->getID() && !$exclusive) ? $this->_permissionCheckWithID($key.'own') : null;
+			$retval = ($retval !== null) ? $retval : $this->_permissionCheckWithID($key);
+			return ($retval !== null) ? $retval : null;
 		}
 
 		protected function _preSave($is_new)
 		{
+			parent::_preSave($is_new);
 			if ($is_new)
 			{
 				if (!$this->_posted)
@@ -213,6 +242,22 @@
 			}
 		}
 		
+		protected function _canPermissionOrSeeAndEditAllComments($permission)
+		{
+			$retval = $this->_permissionCheck($permission);
+			$retval = ($retval === null) ? $this->_permissionCheck('canpostseeandeditallcomments', true) : $retval;
+
+			return $retval;
+		}
+
+		protected function _canPermissionOrSeeAndEditComments($permission)
+		{
+			$retval = $this->_permissionCheck($permission);
+			$retval = ($retval === null) ? $this->_permissionCheck('canpostandeditcomments', true) : $retval;
+
+			return $retval;
+		}
+
 		/**
 		 * Return if the user can edit this comment
 		 *
@@ -221,7 +266,10 @@
 		public function canUserEditComment()
 		{
 			if ($this->isSystemComment()) return false;
-			return (bool) ($this->getPostedByID() == TBGContext::getUser()->getID() || $this->_permissionCheck('caneditcomments') || $this->_permissionCheck('canpostseeandeditallcomments', true));
+			$retval = $this->_canPermissionOrSeeAndEditComments('caneditcomments');
+			$retval = ($retval === null) ? $this->_canPermissionOrSeeAndEditAllComments('caneditcomments') : $retval;
+
+			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
 		}
 
 		/**
@@ -231,22 +279,15 @@
 		 */
 		public function canUserDeleteComment()
 		{
-			return (bool) ($this->getPostedByID() == TBGContext::getUser()->getID() || $this->_permissionCheck('candeletecomments') || $this->_permissionCheck('canpostseeandeditallcomments', true));
+			$retval = $this->_canPermissionOrSeeAndEditComments('candeletecomments');
+			$retval = ($retval === null) ? $this->_canPermissionOrSeeAndEditAllComments('candeletecomments') : $retval;
+
+			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
 		}
 
 		public function __toString()
 		{
 			return $this->_name;
-		}
-		
-		public function getName()
-		{
-			return $this->_name;
-		}
-		
-		public function getID()
-		{
-			return $this->_id;
 		}
 		
 		/**
@@ -383,6 +424,25 @@
 			);
 
 			return $return_values;
+		}
+
+		public function setReplyToComment($reply_to_comment_id)
+		{
+			$this->_reply_to_comment = $reply_to_comment_id;
+		}
+
+		public function getReplyToComment()
+		{
+			if (!is_object($this->_reply_to_comment) && $this->_reply_to_comment)
+			{
+				$this->_b2dbLazyload('_reply_to_comment');
+			}
+			return $this->_reply_to_comment;
+		}
+
+		public function isReply()
+		{
+			return (bool) ($this->getReplyToComment() instanceof TBGComment);
 		}
 
 	}

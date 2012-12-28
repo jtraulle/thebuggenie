@@ -32,11 +32,16 @@
 		protected $_required_arguments = array();
 
 		protected $_optional_arguments = array();
+		
+		protected $_module = null;
+		
+		protected $_scoped = false;
 
 		abstract protected function do_execute();
 
-		final public function __construct()
+		final public function __construct($module = null)
 		{
+			$this->_module = $module;
 			$this->_setup();
 		}
 
@@ -46,10 +51,29 @@
 			$this->_prepare();
 			$this->do_execute();
 		}
+		
+		/**
+		 * Return the associated module for this command if any
+		 * 
+		 * @return TBGModule 
+		 */
+		final protected function getModule()
+		{
+			return $this->_module;
+		}
 
 		public function getDescription()
 		{
 			return $this->_description;
+		}
+		
+		protected function setScoped($val = true)
+		{
+			$this->_scoped = $val;
+			if ($this->_scoped)
+			{
+				$this->addOptionalArgument('scope', 'The scope to work with (uses default scope if not provided)');
+			}
 		}
 
 		public static function setAvailableCommands($available_commands)
@@ -78,7 +102,7 @@
 					$argument_parts = explode('=', $argument, 2);
 					if (count($argument_parts) == 2)
 					{
-						$key = substr($argument_parts[0], 2);
+						$key = mb_substr($argument_parts[0], 2);
 						self::$_provided_arguments[$key] = $argument_parts[1];
 						if (!is_numeric($key))
 						{
@@ -100,7 +124,7 @@
 				if ($this->hasProvidedArgument($key)) continue;
 				if ($this->hasProvidedArgument($cc))
 				{
-					if (substr(self::$_provided_arguments[$cc], 0, 2) == '--' && substr(self::$_provided_arguments[$cc], 2, strpos(self::$_provided_arguments[$cc], '=') - 1) != $key) continue;
+					if (mb_substr(self::$_provided_arguments[$cc], 0, 2) == '--' && mb_substr(self::$_provided_arguments[$cc], 2, mb_strpos(self::$_provided_arguments[$cc], '=') - 1) != $key) continue;
 					self::$_provided_arguments[$key] = self::$_provided_arguments[$cc];
 					if (!is_numeric($key))
 					{
@@ -124,7 +148,7 @@
 				if ($this->hasProvidedArgument($key)) continue;
 				if ($this->hasProvidedArgument($cc))
 				{
-					if (substr(self::$_provided_arguments[$cc], 0, 2) == '--' && substr(self::$_provided_arguments[$cc], 2, strpos(self::$_provided_arguments[$cc], '=') - 1) != $key) continue;
+					if (mb_substr(self::$_provided_arguments[$cc], 0, 2) == '--' && mb_substr(self::$_provided_arguments[$cc], 2, mb_strpos(self::$_provided_arguments[$cc], '=') - 1) != $key) continue;
 					self::$_provided_arguments[$key] = self::$_provided_arguments[$cc];
 					if (!is_numeric($key))
 					{
@@ -132,6 +156,12 @@
 					}
 					continue;
 				}
+			}
+			if ($this->_scoped && array_key_exists('scope', self::$_named_arguments))
+			{
+				$scope = TBGScopesTable::getTable()->selectById(self::$_named_arguments['scope']);
+				$this->cliEcho("Using scope ".$scope->getID()."\n");
+				TBGContext::setScope($scope);
 			}
 		}
 		
@@ -200,7 +230,7 @@
 		public function getInputConfirmation()
 		{
 			$retval = $this->_getCliInput();
-			return (bool) (strtolower(trim($retval)) == 'yes');
+			return (bool) (mb_strtolower(trim($retval)) == 'yes');
 		}
 
 		public function askToAccept()
@@ -211,7 +241,7 @@
 		public function askToDecline()
 		{
 			$retval = $this->_getCliInput();
-			return !(bool) (strtolower(trim($retval)) == 'no');
+			return !(bool) (mb_strtolower(trim($retval)) == 'no');
 		}
 
 		public function getInput($default = '')
@@ -227,12 +257,19 @@
 
 		public static function cli_echo($text, $color = 'white', $style = null)
 		{
-			$fg_colors = array('black' => 29, 'red' => 31, 'green' => 32, 'yellow' => 33, 'blue' => 34, 'magenta' => 35, 'cyan' => 36, 'white' => 37);
-			$op_format = array('bold' => 1, 'underline' => 4, 'blink' => 5, 'reverse' => 7, 'conceal' => 8);
+			if (PHP_OS == 'Windows')
+			{
+				$return_text = $text;
+			}
+			else
+			{
+				$fg_colors = array('black' => 29, 'red' => 31, 'green' => 32, 'yellow' => 33, 'blue' => 34, 'magenta' => 35, 'cyan' => 36, 'white' => 37);
+				$op_format = array('bold' => 1, 'underline' => 4, 'blink' => 5, 'reverse' => 7, 'conceal' => 8);
 
-			$return_text = "\033[" . $fg_colors[$color];
-			$return_text .= ($style !== null && array_key_exists($style, $op_format)) ? ";" . $op_format[$style] : '';
-			$return_text .= "m" . $text . "\033[0m";
+				$return_text = "\033[" . $fg_colors[$color];
+				$return_text .= ($style !== null && array_key_exists($style, $op_format)) ? ";" . $op_format[$style] : '';
+				$return_text .= "m" . $text . "\033[0m";
+			}
 
 			echo $return_text;
 		}

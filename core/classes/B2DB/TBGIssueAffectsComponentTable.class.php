@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue affects component table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issueaffectscomponent")
 	 */
 	class TBGIssueAffectsComponentTable extends TBGB2DBTable 
 	{
@@ -28,26 +34,21 @@
 		const CONFIRMED = 'issueaffectscomponent.confirmed';
 		const STATUS = 'issueaffectscomponent.status';
 		
-		/**
-		 * Return an instance of TBGIssueAffectsComponentTable
-		 * 
-		 * @return TBGIssueAffectsComponentTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGIssueAffectsComponentTable');
-		}
-		
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addBoolean(self::CONFIRMED);
-			parent::_addForeignKeyColumn(self::COMPONENT, B2DB::getTable('TBGComponentsTable'), TBGComponentsTable::ID);
+			parent::_addForeignKeyColumn(self::COMPONENT, Core::getTable('TBGComponentsTable'), TBGComponentsTable::ID);
 			parent::_addForeignKeyColumn(self::ISSUE, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 			parent::_addForeignKeyColumn(self::STATUS, TBGListTypesTable::getTable(), TBGListTypesTable::ID);
 		}
 		
+		protected function _setupIndexes()
+		{
+			$this->_addIndex('issue', self::ISSUE);
+		}
+
 		public function getByIssueID($issue_id)
 		{
 			$crit = $this->getCriteria();
@@ -120,7 +121,6 @@
 				$crit->addInsert(self::ISSUE, $issue_id);
 				$crit->addInsert(self::COMPONENT, $component_id);
 				$crit->addInsert(self::SCOPE, TBGContext::getScope()->getID());
-				$crit->addInsert(self::STATUS, 20);
 				$ret = $this->doInsert($crit);
 				return $ret->getInsertID();
 			}
@@ -130,4 +130,11 @@
 			}
 		}
 		
+		public function deleteByComponentID($component_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::COMPONENT, $component_id);
+			$res = $this->doDelete($crit);
+			return $res;
+		}
 	}

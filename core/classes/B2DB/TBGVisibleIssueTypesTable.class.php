@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Visible issue types table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="visible_issue_types")
 	 */
 	class TBGVisibleIssueTypesTable extends TBGB2DBTable 
 	{
@@ -26,9 +32,9 @@
 		const PROJECT_ID = 'visible_issue_types.project_id';
 		const ISSUETYPE_ID = 'visible_issue_types.issuetype_id';
 		
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::ISSUETYPE_ID, TBGIssueTypesTable::getTable(), TBGIssueTypesTable::ID);
 			parent::_addForeignKeyColumn(self::PROJECT_ID, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
@@ -38,7 +44,7 @@
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::PROJECT_ID, $project_id);
-			$crit->addOrderBy(TBGIssueTypesTable::NAME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(TBGIssueTypesTable::NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
 		}

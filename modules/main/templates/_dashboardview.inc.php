@@ -1,66 +1,25 @@
-<?php switch ($type):
-		  case TBGDashboard::DASHBOARD_VIEW_PREDEFINED_SEARCH : ?>
-	<?php case TBGDashboard::DASHBOARD_VIEW_SAVED_SEARCH : ?>
-			<?php include_component('search/results_view',  array_merge($parameters, array('search' => true, 'default_message' => __('No issues in this list')))); ?>
-	<?php break; ?>		
-	
-	<?php case TBGDashboard::DASHBOARD_VIEW_LOGGED_ACTION : ?>
-		<div class="rounded_box lightgrey borderless cut_bottom dashboard_view_header" style="margin-top: 5px;">
-			<?php echo image_tag('collapse_small.png', array('id' => 'dashboard_'.$id.'_collapse', 'style' => 'float: left; margin: 3px 5px 0 2px;', 'onclick' => "\$('dashboard_{$id}').toggle(); this.src = (this.src == '" . image_url('collapse_small.png', false, 'core', false) . "') ? '" . image_url('expand_small.png', false, 'core', false) . "' : '" . image_url('collapse_small.png', false, 'core', false) . "'")); ?>
-			<?php echo __('What you\'ve done recently'); ?>
-		</div>
-		<div id="dashboard_<?php echo $id; ?>">
-		<?php if (count($tbg_user->getLatestActions()) > 0): ?>
-			<table cellpadding=0 cellspacing=0 style="margin: 5px;">
-				<?php $prev_date = null; ?>
-				<?php $prev_timestamp = null; ?>
-				<?php $prev_issue = null; ?>
-				<?php foreach ($tbg_user->getLatestActions() as $action): ?>
-					<?php $date = tbg_formatTime($action['timestamp'], 5); ?>
-					<?php if ($date != $prev_date): ?>
-						<tr>
-							<td class="latest_action_dates" colspan="2"><?php echo $date; ?></td>
-						</tr>
-					<?php endif; ?>
-					<?php include_component('main/logitem', array('log_action' => $action, 'include_project' => true, 'include_issue_title' => !($prev_timestamp == $action['timestamp'] && $prev_issue == $action['target']))); ?>
-					<?php $prev_date = $date; ?>
-					<?php $prev_timestamp = $action['timestamp']; ?>
-					<?php $prev_issue = $action['target']; ?>
-				<?php endforeach; ?>
-			</table>
-		<?php else: ?>
-			<div class="faded_out" style="padding: 5px 5px 15px 5px;"><?php echo __("You haven't done anything recently"); ?></div>
+<div class="container_div" style="margin: 0 0 5px 5px;">
+	<div class="header">
+		<?php if ($view->hasRSS()): ?>
+			<?php echo link_tag($view->getRSSUrl(), image_tag('icon_rss.png'), array('title' => __('Download feed'), 'style' => 'float: right; margin-left: 5px;', 'class' => 'image')); ?>
+			<?php $tbg_response->addFeed($view->getRSSUrl(), $view->getTitle()); ?>
 		<?php endif; ?>
-		</div>
-	<?php break; ?>
-	
-	<?php case TBGDashboard::DASHBOARD_VIEW_LAST_COMMENTS : ?>
-		<div class="rounded_box lightgrey borderless cut_bottom dashboard_view_header" style="margin-top: 5px;">
-			<?php echo image_tag('collapse_small.png', array('id' => 'dashboard_'.$id.'_collapse', 'style' => 'float: left; margin: 3px 5px 0 2px;', 'onclick' => "\$('dashboard_{$id}').toggle(); this.src = (this.src == '" . image_url('collapse_small.png', false, 'core', false) . "') ? '" . image_url('expand_small.png', false, 'core', false) . "' : '" . image_url('collapse_small.png', false, 'core', false) . "'")); ?>
-			<?php echo __('Recent comments'); ?>
-		</div>
-		<div id="dashboard_<?php echo $id; ?>">
-		<?php $comments = TBGComment::getRecentCommentsByAuthor($tbg_user->getID()); ?>
-		<?php if (count($comments)): ?>
-			<table cellpadding=0 cellspacing=0 style="margin: 5px;">
-				<?php $prev_date = null; ?>
-				<?php foreach ($comments as $comment): ?>
-					<?php $date = tbg_formatTime($comment->getPosted(), 5); ?>
-					<?php if ($date != $prev_date): ?>
-						<tr>
-							<td class="latest_action_dates" colspan="2"><?php echo $date; ?></td>
-						</tr>
-					<?php endif; ?>
-					<?php include_component('main/commentitem', array('comment' => $comment, 'include_project' => true)); ?>
-					<?php $prev_date = $date; ?>
-				<?php endforeach; ?>
-			</table>
-		<?php else: ?>
-			<div class="faded_out" style="padding: 5px 5px 15px 5px;"><?php echo __('No issues recently commented'); ?></div>
+		<?php echo image_tag('collapse_small.png', array('id' => 'dashboard_'.$view->getID().'_collapse', 'style' => 'float: left; margin: 3px 5px 0 5px;', 'onclick' => "\$('dashboard_{$view->getID()}').toggle(); this.src = (this.src == '" . image_url('collapse_small.png', false, 'core', false) . "') ? '" . image_url('expand_small.png', false, 'core', false) . "' : '" . image_url('collapse_small.png', false, 'core', false) . "'")); ?>
+		<?php echo $view->getTitle(); ?>
+	</div>
+	<div id="dashboard_<?php echo $view->getID(); ?>" class="<?php if ($view->getTargetType() == TBGDashboardView::TYPE_PROJECT): ?>dashboard_view_content<?php endif; ?>">
+		<?php if ($view->shouldBePreloaded()): ?>
+			<?php include_component($view->getTemplate(), array('view' => $view)); ?>
 		<?php endif; ?>
+	</div>
+	<?php if (!$view->shouldBePreloaded()): ?>
+		<div style="text-align: center; padding: 20px 0;" id="dashboard_<?php echo $view->getID(); ?>_indicator">
+			<?php echo image_tag('spinning_26.gif'); ?>
 		</div>
-	<?php break; ?>
-	
-<?php endswitch;?>
-
-<?php TBGEvent::createNew('core', 'dashboard_main_' . $id)->trigger(); ?>
+	<?php endif; ?>
+</div>
+<?php if (!$view->shouldBePreloaded()): ?>
+	<script type="text/javascript">
+		TBG.Main.Dashboard.views.push(<?php echo $view->getID(); ?>);
+	</script>
+<?php endif; ?>

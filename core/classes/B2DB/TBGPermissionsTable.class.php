@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Permissions table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="permissions")
 	 */
 	class TBGPermissionsTable extends TBGB2DBTable 
 	{
@@ -31,30 +37,24 @@
 		const ALLOWED = 'permissions.allowed';
 		const MODULE = 'permissions.module';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGPermissionsTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGPermissionsTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::PERMISSION_TYPE, 100);
 			parent::_addVarchar(self::TARGET_ID, 200, 0);
 			parent::_addBoolean(self::ALLOWED);
 			parent::_addVarchar(self::MODULE, 50);
-			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
-			parent::_addForeignKeyColumn(self::GID, TBGGroupsTable::getTable(), TBGGroupsTable::ID);
-			parent::_addForeignKeyColumn(self::TID, B2DB::getTable('TBGTeamsTable'), TBGTeamsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable());
+			parent::_addForeignKeyColumn(self::GID, TBGGroupsTable::getTable());
+			parent::_addForeignKeyColumn(self::TID, Core::getTable('TBGTeamsTable'));
+			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable());
 		}
 		
+		protected function _setupIndexes()
+		{
+			$this->_addIndex('scope', array(self::SCOPE));
+		}
+
 		public function getAll($scope_id = null)
 		{
 			$scope_id = ($scope_id === null) ? TBGContext::getScope()->getID() : $scope_id;
@@ -75,6 +75,20 @@
 			$crit->addWhere(self::TARGET_ID, $target_id);
 			$crit->addWhere(self::SCOPE, $scope);
 			
+			$res = $this->doDelete($crit);
+		}
+
+		public function deleteAllPermissionsForCombination($uid, $gid, $tid, $target_id = 0, $module = 'core', $scope = null)
+		{
+			$scope = ($scope !== null) ? $scope : TBGContext::getScope()->getID();
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::UID, $uid);
+			$crit->addWhere(self::GID, $gid);
+			$crit->addWhere(self::TID, $tid);
+			$crit->addWhere(self::MODULE, $module);
+			$crit->addWhere(self::TARGET_ID, $target_id);
+			$crit->addWhere(self::SCOPE, $scope);
+
 			$res = $this->doDelete($crit);
 		}
 
@@ -125,6 +139,7 @@
 			$this->setPermission(0, 0, 0, true, 'core', "page_about_access", 0, $scope_id);
 			$this->setPermission(0, 0, 0, true, 'core', "page_dashboard_access", 0, $scope_id);
 			$this->setPermission(0, 0, 0, true, 'core', "page_search_access", 0, $scope_id);
+			$this->setPermission(0, 0, 0, true, 'core', 'page_confirm_scope_access', 0, $scope_id);
 			$this->setPermission(0, $guest_group_id, 0, false, 'core', "page_dashboard_access", 0, $scope_id);
 			$this->setPermission(0, $admin_group_id, 0, true, 'core', "page_teamlist_access", 0, $scope_id);
 			$this->setPermission(0, $admin_group_id, 0, true, 'core', "page_clientlist_access", 0, $scope_id);
@@ -181,6 +196,49 @@
 				$crit->addInsert(self::MODULE, $permission['module']);
 				$res = $this->doInsert($crit);
 			}
+		}
+
+		public function getByPermissionTargetIDAndModule($permission, $target_id, $module = 'core')
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::PERMISSION_TYPE, $permission);
+			$crit->addWhere(self::TARGET_ID, $target_id);
+			$crit->addWhere(self::MODULE, $module);
+
+			$permissions = array();
+			if ($res = $this->doSelect($crit))
+			{
+				while ($row = $res->getNextRow())
+				{
+					$target = null;
+					if ($uid = $row->get(self::UID))
+					{
+						$target = TBGContext::factory()->TBGUser($uid);
+					}
+					if ($tid = $row->get(self::TID))
+					{
+						$target = TBGContext::factory()->TBGTeam($tid);
+					}
+					if ($gid = $row->get(self::GID))
+					{
+						$target = TBGContext::factory()->TBGGroup($gid);
+					}
+					if ($target instanceof TBGIdentifiable)
+					{
+						$permissions[] = array('target' => $target, 'allowed' => (boolean) $row->get(self::ALLOWED), 'user_id' => $row->get(self::UID), 'team_id' => $row->get(self::TID), 'group_id' => $row->get(self::GID));
+					}
+				}
+			}
+			return $permissions;
+		}
+		
+		public function deleteByPermissionTargetIDAndModule($permission, $target_id, $module = 'core')
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::PERMISSION_TYPE, $permission);
+			$crit->addWhere(self::TARGET_ID, $target_id);
+			$crit->addWhere(self::MODULE, $module);
+			$this->doDelete($crit);
 		}
 		
 	}

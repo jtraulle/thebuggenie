@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Components table
 	 *
@@ -15,11 +19,14 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="components")
+	 * @Entity(class="TBGComponent")
 	 */
 	class TBGComponentsTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 1;
+		const B2DB_TABLE_VERSION = 2;
 		const B2DBNAME = 'components';
 		const ID = 'components.id';
 		const SCOPE = 'components.scope';
@@ -31,18 +38,18 @@
 		const LEAD_BY = 'components.leader';
 		const LEAD_TYPE = 'components.leader_type';
 		
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addVarchar(self::NAME, 100);
-			parent::_addInteger(self::VERSION_MAJOR, 3);
-			parent::_addInteger(self::VERSION_MINOR, 3);
-			parent::_addInteger(self::VERSION_REVISION, 5);
-			parent::_addInteger(self::LEAD_BY, 10);
-			parent::_addInteger(self::LEAD_TYPE, 3);
-			parent::_addForeignKeyColumn(self::PROJECT, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
+//		protected function _initialize()
+//		{
+//			parent::_setup(self::B2DBNAME, self::ID);
+//			parent::_addVarchar(self::NAME, 100);
+//			parent::_addInteger(self::VERSION_MAJOR, 3);
+//			parent::_addInteger(self::VERSION_MINOR, 3);
+//			parent::_addInteger(self::VERSION_REVISION, 5);
+//			parent::_addInteger(self::LEAD_BY, 10);
+//			parent::_addInteger(self::LEAD_TYPE, 3);
+//			parent::_addForeignKeyColumn(self::PROJECT, TBGProjectsTable::getTable(), TBGProjectsTable::ID);
+//			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
+//		}
 		
 		public function getByProjectID($project_id)
 		{

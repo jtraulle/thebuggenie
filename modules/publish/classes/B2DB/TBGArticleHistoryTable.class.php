@@ -1,5 +1,12 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
+	/**
+	 * @Table(name="articlehistory")
+	 */
 	class TBGArticleHistoryTable extends TBGB2DBTable
 	{
 
@@ -15,19 +22,9 @@
 		const AUTHOR = 'articlehistory.author';
 		const SCOPE = 'articlehistory.scope';
 		
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGArticleHistoryTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGArticleHistoryTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::ARTICLE_NAME, 255);
 			parent::_addText(self::OLD_CONTENT, false);
 			parent::_addText(self::NEW_CONTENT, false);
@@ -41,16 +38,24 @@
 		protected function _getNextRevisionNumberForArticle($article_name)
 		{
 			$crit = $this->getCriteria();
-			$crit->addSelectionColumn(self::REVISION, 'next_revision', B2DBCriteria::DB_MAX, '', '+1');
+			$crit->addSelectionColumn(self::REVISION, 'next_revision', Criteria::DB_MAX, '', '+1');
 			$crit->addWhere(self::ARTICLE_NAME, $article_name);
 
 			$row = $this->doSelectOne($crit);
 			return ($row->get('next_revision')) ? $row->get('next_revision') : 1;
 		}
 
+		public function deleteHistoryByArticle($article_name)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::ARTICLE_NAME, $article_name);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			$res = $this->doDelete($crit);
+		}
+
 		public function addArticleHistory($article_name, $old_content, $new_content, $user_id, $reason = null)
 		{
-			$transaction = B2DB::startTransaction();
+			$transaction = Core::startTransaction();
 			$crit = $this->getCriteria();
 			$crit->addInsert(self::ARTICLE_NAME, $article_name);
 			$crit->addInsert(self::AUTHOR, $user_id);
@@ -128,7 +133,7 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::ARTICLE_NAME, $article_name);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addWhere(self::REVISION, $revision, B2DBCriteria::DB_GREATER_THAN);
+			$crit->addWhere(self::REVISION, $revision, Criteria::DB_GREATER_THAN);
 			$res = $this->doDelete($crit);
 		}
 

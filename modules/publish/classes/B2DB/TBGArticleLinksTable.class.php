@@ -1,5 +1,12 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
+	/**
+	 * @Table(name="articlelinks")
+	 */
 	class TBGArticleLinksTable extends TBGB2DBTable
 	{
 
@@ -10,19 +17,9 @@
 		const LINK_ARTICLE_NAME = 'articlelinks.link_article_name';
 		const SCOPE = 'articlelinks.scope';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGArticleLinksTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGArticleLinksTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::ARTICLE_NAME, 300);
 			parent::_addVarchar(self::LINK_ARTICLE_NAME, 300);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);

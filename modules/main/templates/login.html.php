@@ -1,22 +1,16 @@
 <?php
 
 	TBGContext::loadLibrary('ui');
-
-	if (TBGContext::getUser()->isGuest() || TBGContext::getRequest()->hasParameter('redirect')):
 ?>
-
-<script>
-	showFadedBackdrop('<?php echo make_url('get_partial_for_backdrop', array_merge(array('key' => 'login'), $options)); ?>');
-</script>
-
-<?php
-	else:
-?>
-
-<div class="rounded_box green borderless loggedindiv" >
-	<?php echo __('You are already logged in'); ?>
+<div class="login_page_div">
+<?php include_component('main/login', compact('section', 'error')); ?>
 </div>
-
-<?php 
-	endif;
-?>
+<?php if (TBGContext::hasMessage('login_message')): ?>
+<script type="text/javascript">
+	TBG.Main.Helpers.Message.success('<?php echo TBGContext::getMessageAndClear('login_message'); ?>');
+</script>
+<?php elseif (TBGContext::hasMessage('login_message_err')): ?>
+<script type="text/javascript">
+	TBG.Main.Helpers.Message.error('<?php echo TBGContext::getMessageAndClear('login_message_err'); ?>');
+</script>
+<?php endif; ?>

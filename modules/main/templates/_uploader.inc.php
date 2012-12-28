@@ -1,6 +1,6 @@
 <?php $apc_enabled = TBGRequest::CanGetUploadStatus(); ?>
-<div id="attach_file" style="display: none;">
-	<div class="rounded_box white borderless shadowed backdrop_box medium">
+<div id="attach_file" style="display: none;" class="fullpage_backdrop">
+	<div class="backdrop_box medium">
 		<div class="backdrop_detail_header">
 			<?php if ($mode == 'issue'): ?>
 				<?php echo __('Attach one or more file(s) to this issue'); ?>
@@ -8,25 +8,25 @@
 				<?php echo __('Attach one or more file(s) to this article'); ?>
 			<?php endif; ?>
 		</div>
-		<div id="backdrop_detail_content">
+		<div id="backdrop_detail_content" class="backdrop_detail_content">
 			<div id="upload_forms">
 				<form method="post" action="<?php echo $form_action; ?>" enctype="multipart/form-data" id="uploader_upload_form" style="margin: 10px 0 0 5px;<?php if ($apc_enabled): ?> display: none;<?php endif; ?>">
-					<input type="hidden" name ="MAX_FILE_SIZE" value="<?php echo TBGSettings::getUploadsMaxSize(true); ?>">
+					<input type="hidden" name ="MAX_FILE_SIZE" value="<?php echo TBGSettings::getUploadsEffectiveMaxSize(true); ?>">
 					<input type="hidden" name="APC_UPLOAD_PROGRESS" value="" />
 					<div>
 						<dl>
 							<dt style="width: 120px;"><label for="uploader_file"><?php echo __('Select a file'); ?></label></dt>
 							<dd style="margin-bottom: 3px;"><input type="file" name="uploader_file" id="uploader_file"></dd>
-							<dd style="width: 100%;"><?php echo __('Files bigger than %max_filesize% can not be attached. Please check that the file you are attaching is not bigger than this.', array('%max_filesize%' => '<b>'.TBGSettings::getUploadsMaxSize().'MB</b>')); ?></dd>
+							<dd style="width: 100%;"><?php echo __('Files bigger than %max_filesize% can not be attached. Please check that the file you are attaching is not bigger than this.', array('%max_filesize%' => '<b>'.TBGSettings::getUploadsEffectiveMaxSize().'MB</b>')); ?></dd>
 							<dt style="width: 120px;"><label for="upload_file_description"><?php echo __('Describe the file'); ?></label></dt>
-							<dd style="margin-bottom: 3px;"><input type="text" name="uploader_file_description" id="upload_file_description" style="width: 340px;"></dd>
+							<dd style="margin-bottom: 3px;"><input type="text" name="uploader_file_description" id="upload_file_description" style="width: 440px;"></dd>
 							<dd class="faded_out" style="width: 100%;"><?php echo __('Enter a few words about the file, so people can understand what it is/does'); ?></dd>
-							<?php if ($mode == 'issue'): ?>
-								<dt style="width: 120px;"><label for="upload_file_comment"><?php echo __('Comment'); ?></label> (<?php echo __('optional'); ?>)</dt><br>
-								<dd style="margin-bottom: 3px;"><textarea name="comment" cols="70" rows="3" id="upload_file_comment" style="width: 340px; height: 50px;"></textarea></dd>
-								<dd class="faded_out" style="width: 100%;"><?php echo __('If you want to add a comment with the file, enter the comment here, and it will automatically be added to the issue with the file'); ?></dd>
-							<?php endif; ?>
 						</dl>
+						<?php if ($mode == 'issue'): ?>
+							<label for="upload_file_comment"><?php echo __('Comment'); ?></label> (<?php echo __('optional'); ?>)<br>
+							<textarea name="comment" cols="70" rows="10" id="upload_file_comment" style="width: 560px; height: 150px;"></textarea></dd>
+							<div class="faded_out" style="width: auto;"><?php echo __('If you want to add a comment with the file, enter the comment here, and it will automatically be added to the issue with the file'); ?></div>
+						<?php endif; ?>
 					</div>
 					<div style="text-align: center; clear: both;" id="upload_and_attach">
 						<p style="margin-bottom: 5px;"><?php echo __('Press the %upload_and_attach% button to upload and attach the file', array('%upload_and_attach%' => '<i>'.__('Upload and attach').'</i>')); ?></p>
@@ -57,14 +57,13 @@
 			</div>
 			<div class="faded_out" id="uploader_no_uploaded_files"<?php if (count($existing_files) > 0): ?> style="display: none;"<?php endif; ?>><?php echo __("You haven't uploaded any files right now (not including already attached files)"); ?></div>
 			<div id="done_div">
-				<?php echo __('Click %done% when you have uploaded the files you want to attach', array('%done%' => '<a href="javascript:void(0)" onClick="$(\'attach_file\').hide();"><b>'.__('Done').'</b></a>')); ?>
+				<?php echo __('Click %done% when you have uploaded the files you want to attach', array('%done%' => '<a href="javascript:void(0)" onclick="$(\'attach_file\').hide();"><b>'.__('Done').'</b></a>')); ?>
 			</div>
 		</div>
 		<div class="backdrop_detail_footer">
 			<a href="javascript:void(0)" onclick="$('attach_file').hide();"><?php echo __('Close'); ?></a>
 		</div>
 	</div>
-	<div style="background-color: #000; width: 100%; height: 100%; position: absolute; top: 0; left: 0; margin: 0; padding: 0; z-index: 100000;" class="semi_transparent" onclick="$('attach_file').hide();"> </div>
 </div>
 <?php if ($apc_enabled): ?>
 	<script type="text/javascript">
@@ -174,11 +173,11 @@
 							$('viewissue_uploaded_files').insert({bottom: json.content_inline});
 							$('viewissue_uploaded_attachments_count').update(json.attachmentcount);
 						<?php elseif ($mode == 'article'): ?>
-							$('article_<?php echo strtolower($article->getName()); ?>_no_files').hide();
-							$('article_<?php echo strtolower($article->getName()); ?>_files').insert({bottom: json.content_inline});
+							$('article_<?php echo mb_strtolower($article->getName()); ?>_no_files').hide();
+							$('article_<?php echo mb_strtolower($article->getName()); ?>_files').insert({bottom: json.content_inline});
 						<?php endif; ?>
 						this.error = false;
-						successMessage('File attached successfully');
+						TBG.Main.Helpers.Message.success('File attached successfully');
 					}
 					else if (json.error)
 					{
@@ -186,7 +185,7 @@
 						this.status.hide();
 						this.form.hide();
 						this.error = true;
-						failedMessage(json.error);
+						TBG.Main.Helpers.Message.error(json.error);
 					}
 				}
 			},
@@ -200,11 +199,11 @@
 				this.poller.stop();
 				if (json && (json.failed || json.error))
 				{
-					failedMessage(json.error);
+					TBG.Main.Helpers.Message.error(json.error);
 				}
 				else
 				{
-					failedMessage(transport.responseText);
+					TBG.Main.Helpers.Message.error(transport.responseText);
 				}
 			}
 

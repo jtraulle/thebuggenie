@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue tags table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issuetags")
 	 */
 	class TBGIssueTagsTable extends TBGB2DBTable
 	{
@@ -27,9 +33,9 @@
 		const ADDED = 'issuetags.added';
 		const SCOPE = 'issuetags.scope';
 		
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::ISSUE_ID, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
 			parent::_addVarchar(self::TAG_NAME, 50);
 			parent::_addInteger(self::ADDED, 10);
@@ -40,7 +46,7 @@
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::ISSUE_ID, $issue_id);
-			$crit->addOrderBy(self::TAG_NAME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::TAG_NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 			return $res;
 		}

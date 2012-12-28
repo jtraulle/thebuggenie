@@ -19,7 +19,7 @@
 	class TBGMailer
 	{
 		const MAIL_TYPE_PHP = 1;
-		const MAIL_TYPE_B2M = 2;
+		const MAIL_TYPE_CUSTOM = 2;
 
 		protected $debug = false;
 
@@ -122,6 +122,7 @@
 				}
 				else
 				{
+					require_once THEBUGGENIE_CORE_PATH . 'lib' . DS . 'swift' . DS . 'lib' . DS . 'swift_required.php';
 					$retval = $this->_mail2($email);
 				}
 			}
@@ -135,23 +136,21 @@
 
 		protected function _mail(TBGMimemail $email)
 		{
-			$boundary = md5(date('U'));
-
 			if (!$this->no_dash_f)
 			{
-				$retval = mail($email->getRecipientAddressesAsString(), $email->getSubject(), $email->getBodyAsString(), $email->getHeadersAsString(false), '-f'.$email->getFromAddress());
+				$retval = mail($email->getRecipientsAsString(), $email->getSubject(), $email->getBodyAsString(), $email->getHeadersAsString(false, false), '-f'.$email->getFromAddress());
 			}
 			else
 			{
-				$retval = mail($email->getRecipientAddressesAsString(), $email->getSubject(), $email->getBodyAsString(), $email->getHeadersAsString(false));
+				$retval = mail($email->getRecipientsAsString(), $email->getSubject(), $email->getBodyAsString(), $email->getHeadersAsString(false, false));
 			}
 			if ($retval)
 			{
-				TBGLogging::log("Sending email to {$email->getRecipients()} accepted for delivery OK");
+				TBGLogging::log("Sending email to {$email->getRecipientsAsString()} accepted for delivery OK");
 			}
 			else
 			{
-				TBGLogging::log("Sending email to {$email->getRecipients()} not accepted for delivery", TBGLogging::LEVEL_NOTICE);
+				TBGLogging::log("Sending email to {$email->getRecipientsAsString()} not accepted for delivery", TBGLogging::LEVEL_NOTICE);
 			}
 			
 			return $retval;
@@ -187,6 +186,14 @@
 
 		protected function _mail2(TBGMimemail $email)
 		{
+			if (TBGContext::isCLI())
+			{
+				$server = php_uname('n');
+			}
+			else
+			{
+				$server = $_SERVER['SERVER_NAME'];
+			}
 
 			/* Open a socket connection to the mail server SMTP port (25) and read the welcome message. */
 			$fp = fsockopen($this->server, $this->port, $errno, $errstr, $this->timeout);
@@ -196,19 +203,19 @@
 				{
 					echo("No server? $errno $errstr<br>");
 				}
-				throw new Exception(TBGContext::getI18n()->__('Could not open connection to server %server on port %port%', array('server' => $this->server, 'port' => $this->port)));
+				throw new Exception(TBGContext::getI18n()->__('Could not open connection to server %server on port %port%', array('%server%' => $this->server, '%port%' => $this->port)));
 			}
 			$this->_read_buffer($fp, 'open');
 
 			/* Standard "ehlo" message. */
 			if ($this->ehlo)
 			{
-				fputs($fp, "ehlo {$_SERVER['SERVER_NAME']}\r\n");
+				fputs($fp, "ehlo {$server}\r\n");
 				$this->_read_buffer($fp, 'ehlo');
 			}
 			else /* MS Exchange "helo" message. */
 			{
-				fputs($fp, "helo {$_SERVER['SERVER_NAME']}\r\n");
+				fputs($fp, "helo {$server}\r\n");
 				$this->_read_buffer($fp, 'helo');
 			}
 
@@ -219,13 +226,13 @@
 				$rv = fgets($fp, 4096);
 				if ($this->debug)
 				{
-					echo(base64_decode(substr($rv,4)) . $this->username . ' ' . $rv . '<br>');
+					echo(base64_decode(mb_substr($rv,4)) . $this->username . ' ' . $rv . '<br>');
 				}
 				fputs($fp,base64_encode($this->username) . "\r\n");
 				$rv = fgets($fp, 4096);
 				if ($this->debug)
 				{
-					echo(base64_decode(substr($rv,4)) . $this->password . ' ' . $rv . '<br>');
+					echo(base64_decode(mb_substr($rv,4)) . $this->password . ' ' . $rv . '<br>');
 				}
 				fputs($fp,base64_encode($this->password) . "\r\n");
 				$rv = $this->_read_buffer($fp, 'user/pass');
@@ -236,7 +243,7 @@
 					{
 						echo 'Not ready to authenticate. ('.$rv.') Try changing server type';
 					}
-					throw new Exception(TBGContext::getI18n()->__('Not ready to authenticate. (%rv%) Try changing server type', array('rv' => $rv)));
+					throw new Exception(TBGContext::getI18n()->__('Not ready to authenticate. (%rv%) Try changing server type', array('%rv%' => $rv)));
 				}
 
 				if (!preg_match("/^235/i",$rv))
@@ -246,7 +253,7 @@
 						echo('Username / password not accepted on server<br>');
 					}
 					fclose($fp);
-					throw new Exception(TBGContext::getI18n()->__('Username / password not accepted on server: %rv%', array('rv' => $rv)));
+					throw new Exception(TBGContext::getI18n()->__('Username / password not accepted on server: %rv%', array('%rv%' => $rv)));
 				}
 			}
 
@@ -267,7 +274,7 @@
 				{
 					echo "You are not allowed to send emails through this server.";
 				}
-				throw new Exception(TBGContext::getI18n()->__("You are not allowed to send emails through this server. \nThe error was: %rv%", array('rv' => $rv)));
+				throw new Exception(TBGContext::getI18n()->__("You are not allowed to send emails through this server. \nThe error was: %rv%", array('%rv%' => $rv)));
 			}
 
 			foreach ($email->getCC() as $cc)
@@ -310,7 +317,7 @@
 				{
 					echo "Did not receive a confirmation message from the mail server.";
 				}
-				throw new Exception(TBGContext::getI18n()->__("Did not receive a confirmation message from the mail server.. \nHowever, we received: %rv%", array('rv' => $rv)));
+				throw new Exception(TBGContext::getI18n()->__("Did not receive a confirmation message from the mail server.. \nHowever, we received: %rv%", array('%rv%' => $rv)));
 			}
 
 		}

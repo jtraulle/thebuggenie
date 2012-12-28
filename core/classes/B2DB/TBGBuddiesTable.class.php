@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Buddies table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="buddies")
 	 */
 	class TBGBuddiesTable extends TBGB2DBTable 
 	{
@@ -26,19 +32,9 @@
 		const UID = 'buddies.uid';
 		const BID = 'buddies.bid';
 
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGBuddiesTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGBuddiesTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::BID, TBGUsersTable::getTable(), TBGUsersTable::ID);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
@@ -58,7 +54,17 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::UID, $user_id);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			return $this->doSelect($crit, false);
+
+			$friends = array();
+			if ($res = $this->doSelect($crit, false))
+			{
+				while ($row = $res->getNextRow())
+				{
+					$friends[] = $row->get(self::BID);
+				}
+			}
+
+			return $friends;
 		}
 
 		public function removeFriendByUserID($user_id, $friend_id)
@@ -69,6 +75,5 @@
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$this->doDelete($crit);
 		}
-
 
 	}

@@ -1,5 +1,12 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
+	/**
+	 * @Table(name="articlecategories")
+	 */
 	class TBGArticleCategoriesTable extends TBGB2DBTable
 	{
 
@@ -11,19 +18,9 @@
 		const CATEGORY_NAME = 'articlecategories.category_name';
 		const SCOPE = 'articlecategories.scope';
 		
-		/**
-		 * Return an instance of this table
-		 *
-		 * @return TBGArticleCategoriesTable
-		 */
-		public static function getTable()
+		protected function _initialize()
 		{
-			return B2DB::getTable('TBGArticleCategoriesTable');
-		}
-
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addVarchar(self::ARTICLE_NAME, 300);
 			parent::_addBoolean(self::ARTICLE_IS_CATEGORY);
 			parent::_addVarchar(self::CATEGORY_NAME, 300);
@@ -53,7 +50,7 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::ARTICLE_NAME, $article_name);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addOrderBy(self::CATEGORY_NAME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::CATEGORY_NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 
 			return $res;
@@ -65,7 +62,7 @@
 			$crit->addWhere(self::CATEGORY_NAME, $category_name);
 			$crit->addWhere(self::ARTICLE_IS_CATEGORY, false);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addOrderBy(self::ARTICLE_NAME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::ARTICLE_NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 
 			return $res;
@@ -77,7 +74,7 @@
 			$crit->addWhere(self::CATEGORY_NAME, $category_name);
 			$crit->addWhere(self::ARTICLE_IS_CATEGORY, true);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$crit->addOrderBy(self::CATEGORY_NAME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::CATEGORY_NAME, Criteria::SORT_ASC);
 			$res = $this->doSelect($crit);
 
 			return $res;

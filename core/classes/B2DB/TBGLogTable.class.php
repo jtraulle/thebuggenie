@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Log table
 	 *
@@ -15,11 +19,14 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Entity(class="TBGLogItem")
+	 * @Table(name="log")
 	 */
 	class TBGLogTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 1;
+		const B2DB_TABLE_VERSION = 2;
 		const TYPE_ISSUE = 1;
 		
 		const LOG_MILESTONE_REMOVE = 1;
@@ -76,31 +83,8 @@
 		const TEXT = 'log.text';
 		const TIME = 'log.time';
 		const UID = 'log.uid';
+		const COMMENT_ID = 'log.comment_id';
 
-		/**
-		 * Return an instance of TBGLogTable
-		 * 
-		 * @return TBGLogTable
-		 */
-		public static function getTable()
-		{
-			return B2DB::getTable('TBGLogTable');
-		}
-		
-		public function __construct()
-		{
-			parent::__construct(self::B2DBNAME, self::ID);
-			parent::_addInteger(self::TARGET, 10);
-			parent::_addInteger(self::TARGET_TYPE, 3);
-			parent::_addInteger(self::CHANGE_TYPE, 3);
-			parent::_addText(self::TEXT, false);
-			parent::_addText(self::PREVIOUS_VALUE, false);
-			parent::_addText(self::CURRENT_VALUE, false);
-			parent::_addInteger(self::TIME, 10);
-			parent::_addForeignKeyColumn(self::UID, TBGUsersTable::getTable(), TBGUsersTable::ID);
-			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
-		}
-		
 		public function createNew($target, $target_type, $change_type, $text = null, $uid = 0, $time = null)
 		{
 			$crit = $this->getCriteria();
@@ -130,7 +114,7 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::TARGET, $issue_id);
 			$crit->addWhere(self::TARGET_TYPE, self::TYPE_ISSUE);
-			$crit->addOrderBy(self::TIME, B2DBCriteria::SORT_ASC);
+			$crit->addOrderBy(self::TIME, Criteria::SORT_ASC);
 			
 			$ret_arr = array();
 			if ($res = $this->doSelect($crit))
@@ -149,7 +133,7 @@
 		{
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::UID, $user_id);
-			$crit->addOrderBy(self::TIME, B2DBCriteria::SORT_DESC);
+			$crit->addOrderBy(self::TIME, Criteria::SORT_DESC);
 			if ($limit !== null)
 			{
 				$crit->setLimit($limit);
@@ -183,7 +167,7 @@
 				$crit->setOffset($offset);
 			}
 			
-			$crit->addOrderBy(self::TIME, B2DBCriteria::SORT_DESC);
+			$crit->addOrderBy(self::TIME, Criteria::SORT_DESC);
 
 			$ret_arr = array();
 			if ($res = $this->doSelect($crit))
@@ -203,7 +187,7 @@
 			$crit = $this->getCriteria();
 			$crit->addJoin(TBGIssuesTable::getTable(), TBGIssuesTable::ID, self::TARGET);
 			$crit->addWhere(self::TARGET_TYPE, self::TYPE_ISSUE);
-			$crit->addWhere(self::CHANGE_TYPE, array(self::LOG_ISSUE_CREATED, self::LOG_ISSUE_CLOSE), B2DBCriteria::DB_IN);
+			$crit->addWhere(self::CHANGE_TYPE, array(self::LOG_ISSUE_CREATED, self::LOG_ISSUE_CLOSE), Criteria::DB_IN);
 			$crit->addWhere(TBGIssuesTable::PROJECT_ID, $project_id);
 			if ($limit !== null)
 			{
@@ -214,7 +198,7 @@
 				$crit->setOffset($offset);
 			}
 
-			$crit->addOrderBy(self::TIME, B2DBCriteria::SORT_DESC);
+			$crit->addOrderBy(self::TIME, Criteria::SORT_DESC);
 
 			$ret_arr = array();
 			if ($res = $this->doSelect($crit))
@@ -229,23 +213,23 @@
 
 		}
 
-		public function getLast30IssueCountsByProjectID($project_id)
+		public function getLast15IssueCountsByProjectID($project_id)
 		{
 			$retarr = array();
 
-			for ($cc = 30; $cc >= 0; $cc--)
+			for ($cc = 15; $cc >= 0; $cc--)
 			{
 				$crit = $this->getCriteria();
 				$joinedtable = $crit->addJoin(TBGIssuesTable::getTable(), TBGIssuesTable::ID, self::TARGET);
 				$crit->addWhere(self::TARGET_TYPE, self::TYPE_ISSUE);
-				$crit->addWhere(self::CHANGE_TYPE, array(self::LOG_ISSUE_CREATED, self::LOG_ISSUE_CLOSE), B2DBCriteria::DB_IN);
+				$crit->addWhere(self::CHANGE_TYPE, array(self::LOG_ISSUE_CREATED, self::LOG_ISSUE_CLOSE), Criteria::DB_IN);
 				$crit->addWhere(TBGIssuesTable::PROJECT_ID, $project_id);
 				$crit->addWhere(TBGIssuesTable::DELETED, false);
-				$crit->addJoin(TBGIssueTypesTable::getTable(), TBGIssueTypesTable::ID, TBGIssuesTable::ISSUE_TYPE, array(), B2DBCriteria::DB_LEFT_JOIN, $joinedtable);
+				$crit->addJoin(TBGIssueTypesTable::getTable(), TBGIssueTypesTable::ID, TBGIssuesTable::ISSUE_TYPE, array(), Criteria::DB_LEFT_JOIN, $joinedtable);
 				$crit->addWhere(TBGIssueTypesTable::ICON, 'bug_report');
 				$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-				$ctn = $crit->returnCriterion(self::TIME, NOW - (86400 * ($cc + 1)), B2DBCriteria::DB_GREATER_THAN_EQUAL);
-				$ctn->addWhere(self::TIME, NOW - (86400 * $cc), B2DBCriteria::DB_LESS_THAN_EQUAL);
+				$ctn = $crit->returnCriterion(self::TIME, NOW - (86400 * ($cc + 1)), Criteria::DB_GREATER_THAN_EQUAL);
+				$ctn->addWhere(self::TIME, NOW - (86400 * $cc), Criteria::DB_LESS_THAN_EQUAL);
 				$crit->addWhere($ctn);
 
 				$crit2 = clone $crit;

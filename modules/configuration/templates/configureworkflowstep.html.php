@@ -14,9 +14,9 @@
 <table style="table-layout: fixed; width: 100%" cellpadding=0 cellspacing=0>
 	<tr>
 		<?php include_component('leftmenu', array('selected_section' => TBGSettings::CONFIGURATION_SECTION_WORKFLOW)); ?>
-		<td valign="top">
+		<td valign="top" style="padding-left: 15px;">
 			<?php include_template('configuration/workflowmenu', array('selected_tab' => 'step', 'workflow' => $workflow, 'step' => $step)); ?>
-			<div class="content" style="width: 750px;" id="workflow_step_container">
+			<div class="content" style="width: 788px;" id="workflow_step_container">
 				<?php if ($step instanceof TBGWorkflowStep): ?>
 					<div class="rounded_box lightgrey borderless workflow_step_intro">
 						<div class="header"><?php echo __('Workflow step "%step_name%"', array('%step_name%' => $step->getName())); ?></div>
@@ -26,7 +26,7 @@
 							<?php if (!$step->isCore()): ?>
 								<br>
 								<b><?php echo javascript_link_tag(__('Edit this step'), array('onclick' => "\$('step_details_form').toggle();\$('step_details_info').toggle();")); ?></b><br>
-								<b><?php echo javascript_link_tag(__('Add transition'), array('onclick' => "$('step_{$step->getID()}_transition_add').toggle()")); ?></b>
+								<b><?php echo javascript_link_tag(__('Add outgoing transition'), array('onclick' => "$('step_{$step->getID()}_transition_add').toggle()")); ?></b>
 							<?php endif; ?>
 						</div>
 					</div>

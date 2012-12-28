@@ -1,5 +1,9 @@
 <?php
 
+	use b2db\Core,
+		b2db\Criteria,
+		b2db\Criterion;
+
 	/**
 	 * Issue relations table
 	 *
@@ -15,6 +19,8 @@
 	 *
 	 * @package thebuggenie
 	 * @subpackage tables
+	 *
+	 * @Table(name="issuerelations")
 	 */
 	class TBGIssueRelationsTable extends TBGB2DBTable 
 	{
@@ -27,9 +33,9 @@
 		const CHILD_ID = 'issuerelations.child_id';
 		const MUSTFIX = 'issuerelations.mustfix';
 
-		public function __construct()
+		protected function _initialize()
 		{
-			parent::__construct(self::B2DBNAME, self::ID);
+			parent::_setup(self::B2DBNAME, self::ID);
 			parent::_addBoolean(self::MUSTFIX);
 			parent::_addForeignKeyColumn(self::SCOPE, TBGScopesTable::getTable(), TBGScopesTable::ID);
 			parent::_addForeignKeyColumn(self::PARENT_ID, TBGIssuesTable::getTable(), TBGIssuesTable::ID);
@@ -71,6 +77,16 @@
 			return $res;
 		}
 		
+		public function removeParentIssue($issue_id, $parent_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::CHILD_ID, $issue_id);
+			$crit->addWhere(self::PARENT_ID, $parent_id);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			$res = $this->doDelete($crit);
+			return $res;
+		}
+
 		public function addChildIssue($issue_id, $child_id)
 		{
 			$crit = $this->getCriteria();
@@ -81,4 +97,14 @@
 			return $res;
 		}
 		
+		public function removeChildIssue($issue_id, $child_id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::PARENT_ID, $issue_id);
+			$crit->addWhere(self::CHILD_ID, $child_id);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			$res = $this->doDelete($crit);
+			return $res;
+		}
+
 	}

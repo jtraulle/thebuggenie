@@ -1,24 +1,47 @@
 <?php
 
-	class TBGFile extends TBGIdentifiableClass
+	/**
+	 * @Table(name="TBGFilesTable")
+	 */
+	class TBGFile extends TBGIdentifiableScopedClass
 	{
-		
-		static protected $_b2dbtablename = 'TBGFilesTable';
 
+		/**
+		 * @Column(type="string", length=200)
+		 */
 		protected $_content_type;
 
 		protected $_uploaded_by;
 
+		/**
+		 * @Column(type="integer", length=10)
+		 */
 		protected $_uploaded_at;
 
+		/**
+		 * @Column(type="string", length=200)
+		 */
 		protected $_real_filename;
 
-		protected $_original_filename;
+		/**
+		 * @Column(type="string", length=200, name="original_filename")
+		 */
+		protected $_name;
 
+		/**
+		 * @Column(type="blob")
+		 */
 		protected $_content;
 
+		/**
+		 * @Column(type="string", length=200)
+		 */
 		protected $_description;
 		
+		/**
+		 * @Column(type="integer", length=10)
+		 * @Relates(class="TBGUser")
+		 */
 		protected $_uid;
 
 		public static function getByIssueID($issue_id)
@@ -105,12 +128,12 @@
 
 		public function getOriginalFilename()
 		{
-			return $this->_original_filename;
+			return $this->_name;
 		}
 
 		public function setOriginalFilename($original_filename)
 		{
-			$this->_original_filename = $original_filename;
+			$this->_name = $original_filename;
 		}
 
 		public function getContent()
@@ -125,7 +148,7 @@
 
 		public function getFullpath()
 		{
-			return TBGSettings::getUploadsLocalpath() . $this->getOriginalFilename();
+			return TBGSettings::getUploadsLocalpath() . $this->getRealFilename();
 		}
 
 		public function doesFileExistOnDisk()
@@ -133,7 +156,7 @@
 			return file_exists($this->getFullpath());
 		}
 
-		public function _preDelete()
+		protected function _preDelete()
 		{
 			if ($this->doesFileExistOnDisk())
 			{
@@ -155,5 +178,32 @@
 		{
 			$this->_description = $description;
 		}
+		
+		public function move($target_path)
+		{
+			if (TBGSettings::getUploadStorage() == 'files')
+			{
+				rename($this->getFullpath(), TBGSettings::getUploadsLocalpath() . $target_path);
+			}
+			$this->setRealFilename($target_path);
+			$this->save();
+		}
 
+		public function hasAccess()
+		{
+			$issue_ids = TBGIssueFilesTable::getTable()->getIssuesByFileID($this->getID());
+
+			foreach ($issue_ids as $issue_id)
+			{
+				$issue = new TBGIssue($issue_id);
+				if ($issue->hasAccess()) return true;
+			}
+
+			$event = TBGEvent::createNew('core', 'TBGFile::hasAccess', $this);
+			$event->setReturnValue(false);
+			$event->triggerUntilProcessed();
+
+			return $event->getReturnValue();
+		}
+		
 	}
