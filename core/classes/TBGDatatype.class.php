@@ -68,12 +68,6 @@
 		 */
 		const ROLE = 'role';
 		
-		/**
-		 * Item type project role
-		 *
-		 */
-		const PROJECTROLE = 'projectrole';
-		
 		public static function loadFixtures(TBGScope $scope)
 		{
 			TBGCategory::loadFixtures($scope);
@@ -82,15 +76,11 @@
 			TBGResolution::loadFixtures($scope);
 			TBGSeverity::loadFixtures($scope);
 			TBGStatus::loadFixtures($scope);
-<<<<<<< HEAD
-			TBGProjectRole::loadFixtures($scope);
-=======
 			TBGRole::loadFixtures($scope);
 			foreach (self::getTypes() as $type => $class)
 			{
 				TBGContext::setPermission('set_datatype_'.$type, 0, 'core', 0, 0, 0, true, $scope->getID());
 			}
->>>>>>> upstream/master
 		}
 		
 		public static function getTypes()
@@ -102,7 +92,6 @@
 			$types['severity'] = 'TBGSeverity';
 			$types['reproducability'] = 'TBGReproducability';
 			$types['resolution'] = 'TBGResolution';
-			$types['projectrole'] = 'TBGProjectRole';
 			
 			return $types;
 		}
