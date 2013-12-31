@@ -122,6 +122,8 @@
 					$this->loadStrings($module_name);
 				}
 			}
+			
+			TBGEvent::createNew('core', 'end_i18n')->trigger();
 		}
 		
 		public function setLanguage($language)
@@ -284,7 +286,7 @@
 				TBGLogging::log('The text "' . $text . '" does not exist in list of translated strings.', 'i18n');
 				$this->_missing_strings[$text] = true;
 			}
-			if (!empty($replacements))
+			/*if (!empty($replacements))
 			{
 				$tmp = array();
 				foreach ($replacements as $key => $value)
@@ -292,7 +294,7 @@
         			$tmp[$key] = $value;
     				$retstring = str_replace(array_keys($tmp), array_values($tmp), $retstring);
 				}
-			}
+			}*/
 			if ($html_decode) {
 				$retstring = html_entity_decode($retstring);
 			}
